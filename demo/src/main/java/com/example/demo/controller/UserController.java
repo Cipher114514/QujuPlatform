@@ -38,17 +38,23 @@ public class UserController {
      * 前端提示"请输入用户ID或昵称"，后端两者都查
      */
     @GetMapping("/search")
-    public Result<List<UserSearchResult>> searchUsers(@RequestParam String keyword) {
+    public Result<List<UserSearchResult>> searchUsers(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String nickname) {
+        String q = keyword != null ? keyword : nickname;
+        if (q == null || q.isBlank()) {
+            return Result.ok(List.of());
+        }
         Set<User> users = new LinkedHashSet<>();
 
         // 1. 如果是纯数字，尝试按ID精确查找
         try {
-            Long id = Long.parseLong(keyword);
+            Long id = Long.parseLong(q);
             userRepository.findById(id).ifPresent(users::add);
         } catch (NumberFormatException ignored) {}
 
         // 2. 按昵称模糊匹配
-        users.addAll(userRepository.findByNicknameContainingIgnoreCase(keyword));
+        users.addAll(userRepository.findByNicknameContainingIgnoreCase(q));
 
         List<UserSearchResult> results = users.stream()
                 .map(u -> new UserSearchResult(u.getId(), u.getNickname(), u.getAvatar(), u.getBio()))
