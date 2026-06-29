@@ -66,6 +66,8 @@ var UploadAPI = {
 };
 
 // ===== 以下由各模块开发者按需追加 =====
-// var ActivityAPI = { ... };
+var ActivityAPI = {
+    create: function(body) { return api('/activities', { method: 'POST', body: body }); }
+};
 // var FriendAPI   = { ... };
 // var MessageAPI  = { ... };
