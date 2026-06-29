@@ -10,6 +10,8 @@ const ChatRoomPage = {
     _page: 1,
     _hasMore: true,
     _loading: false,
+    _lastSentAt: null,
+    _pollTimer: null,
 
     render: function (params) {
         var tu = this._targetUser || {};
@@ -76,22 +78,53 @@ const ChatRoomPage = {
 
     destroy: function () {
         WsClient.unsubscribe('/user/queue/messages');
+        if (this._pollTimer) {
+            clearInterval(this._pollTimer);
+            this._pollTimer = null;
+        }
     },
 
     // ========== WebSocket 消息处理 ==========
 
     _onWsMessage: function (msg) {
-        // 只处理当前聊天对象发来的消息
         if (msg.senderId !== this._targetUserId) return;
-
-        // 去重
         for (var i = 0; i < this._messages.length; i++) {
             if (this._messages[i].id === msg.id) return;
         }
-
         this._messages.push(msg);
+        if (msg.sentAt) this._lastSentAt = msg.sentAt;
         this._renderMessages();
         this._scrollToBottom();
+    },
+
+    // ========== 轮询兜底（WebSocket 断开时仍能收到新消息） ==========
+    _startPolling: function () {
+        var self = this;
+        if (self._pollTimer) clearInterval(self._pollTimer);
+        self._pollTimer = setInterval(async function () {
+            if (!self._conversationId || !self._lastSentAt) return;
+            try {
+                var res = await MessageAPI.newMessages(self._conversationId, self._lastSentAt);
+                var newMsgs = res.data || [];
+                if (newMsgs.length > 0) {
+                    for (var i = 0; i < newMsgs.length; i++) {
+                        // 去重
+                        var exists = false;
+                        for (var j = 0; j < self._messages.length; j++) {
+                            if (self._messages[j].id === newMsgs[i].id) { exists = true; break; }
+                        }
+                        if (!exists) {
+                            self._messages.push(newMsgs[i]);
+                        }
+                    }
+                    self._lastSentAt = newMsgs[newMsgs.length - 1].sentAt;
+                    self._renderMessages();
+                    self._scrollToBottom();
+                }
+            } catch (e) {
+                // 轮询失败静默
+            }
+        }, 3000);
     },
 
     // ========== 数据加载 ==========
@@ -123,6 +156,9 @@ const ChatRoomPage = {
                 self._messages = (pageData.list || []).reverse();
                 self._hasMore = pageData.pagination && pageData.pagination.page < pageData.pagination.pages;
                 self._page = 1;
+                if (self._messages.length > 0) {
+                    self._lastSentAt = self._messages[self._messages.length - 1].sentAt;
+                }
             } else {
                 // 无历史会话，从 user search 获取用户信息
                 try {
@@ -149,6 +185,9 @@ const ChatRoomPage = {
 
         self._renderMessages();
         self._scrollToBottom();
+
+        // 启动轮询兜底
+        self._startPolling();
     },
 
     _loadMoreHistory: async function () {
@@ -210,6 +249,8 @@ const ChatRoomPage = {
             if (!this._conversationId && sent.conversationId) {
                 this._conversationId = sent.conversationId;
             }
+            // 更新时间戳，用于轮询兜底
+            if (sent.sentAt) this._lastSentAt = sent.sentAt;
             this._renderMessages();
             this._scrollToBottom();
         } catch (e) {

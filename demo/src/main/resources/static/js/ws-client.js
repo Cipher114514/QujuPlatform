@@ -1,78 +1,90 @@
 // ====== 趣聚 WebSocket 客户端（STOMP over SockJS） ======
-// 用法：WsClient.connect() → WsClient.subscribe(dest, callback) → WsClient.disconnect()
-// 依赖：sockjs.min.js, stomp.min.js（通过 index.html 的 CDN 引入）
+// 用法：WsClient.connect() → WsClient.subscribe(dest, callback)
+// 依赖：sockjs.min.js, stomp.umd.min.js（index.html CDN 引入）
 
 var WsClient = {
     _stompClient: null,
     _connected: false,
     _connecting: false,
     _subscriptions: {},
-    _pendingSubs: [],      // connect 完成前暂存的订阅
-    _heartbeatTimer: null,
+    _pendingSubs: [],
     _reconnectTimer: null,
     _reconnectDelay: 3000,
+    _maxReconnectDelay: 30000,
+    _onStatusChange: null,  // callback(connected)
 
-    /** 连接到 WebSocket */
+    /** 获取 STOMP 库引用（兼容 v5/v7） */
+    _getStomp: function () {
+        if (typeof Stomp !== 'undefined') return Stomp;
+        if (typeof StompJs !== 'undefined' && StompJs.Stomp) return StompJs.Stomp;
+        console.error('[WsClient] STOMP 库未加载，请检查 CDN');
+        return null;
+    },
+
     connect: function () {
         var self = this;
         var token = getToken();
-        if (!token) {
-            console.log('[WsClient] 无 token，跳过连接');
-            return;
-        }
+        if (!token) return;
         if (self._connected || self._connecting) return;
+
+        var StompLib = self._getStomp();
+        if (!StompLib) return;
 
         self._connecting = true;
         console.log('[WsClient] 连接中...');
 
-        var socket = new SockJS('/ws?token=' + encodeURIComponent(token));
-        self._stompClient = Stomp.over(socket);
-        self._stompClient.debug = null; // 关闭 STOMP 调试日志
+        try {
+            var socket = new SockJS('/ws?token=' + encodeURIComponent(token));
+            self._stompClient = StompLib.over(socket);
+            self._stompClient.debug = null;
 
-        self._stompClient.connect({},
-            function () {
-                self._connected = true;
-                self._connecting = false;
-                console.log('[WsClient] 已连接');
+            self._stompClient.connect({},
+                function () {
+                    self._connected = true;
+                    self._connecting = false;
+                    self._reconnectDelay = 3000;
+                    console.log('[WsClient] 已连接');
 
-                // 处理 connect 前暂存的订阅
-                for (var i = 0; i < self._pendingSubs.length; i++) {
-                    var ps = self._pendingSubs[i];
-                    self._doSubscribe(ps.dest, ps.cb);
-                }
-                self._pendingSubs = [];
-
-                // 心跳
-                if (self._heartbeatTimer) clearInterval(self._heartbeatTimer);
-                self._heartbeatTimer = setInterval(function () {
-                    if (self._connected) {
-                        self._stompClient.send('/app/heartbeat', {}, '{}');
+                    for (var i = 0; i < self._pendingSubs.length; i++) {
+                        var ps = self._pendingSubs[i];
+                        self._doSubscribe(ps.dest, ps.cb);
                     }
-                }, 30000);
-            },
-            function (err) {
-                self._connected = false;
-                self._connecting = false;
-                console.log('[WsClient] 连接断开，3秒后重连...');
-                self._scheduleReconnect();
-            }
-        );
+                    self._pendingSubs = [];
+
+                    if (self._onStatusChange) self._onStatusChange(true);
+                },
+                function (err) {
+                    self._connected = false;
+                    self._connecting = false;
+                    console.log('[WsClient] 断开: ' + (err || '连接失败'));
+                    if (self._onStatusChange) self._onStatusChange(false);
+                    self._scheduleReconnect();
+                }
+            );
+        } catch (e) {
+            self._connecting = false;
+            console.error('[WsClient] 连接异常:', e);
+            self._scheduleReconnect();
+        }
     },
 
     _doSubscribe: function (dest, cb) {
         var self = this;
-        var sub = self._stompClient.subscribe(dest, function (msg) {
-            try {
-                var body = JSON.parse(msg.body);
-                cb(body);
-            } catch (e) {
-                cb(msg.body);
-            }
-        });
-        self._subscriptions[dest] = sub;
+        try {
+            var sub = self._stompClient.subscribe(dest, function (msg) {
+                try {
+                    var body = JSON.parse(msg.body);
+                    cb(body);
+                } catch (e) {
+                    cb(msg.body);
+                }
+            });
+            self._subscriptions[dest] = sub;
+        } catch (e) {
+            console.error('[WsClient] 订阅失败: ' + dest, e);
+        }
     },
 
-    /** 订阅目标（连接中则暂存，已连接则立即订阅） */
     subscribe: function (dest, cb) {
         var self = this;
         if (self._connected) {
@@ -83,11 +95,10 @@ var WsClient = {
         }
     },
 
-    /** 取消订阅 */
     unsubscribe: function (dest) {
         var sub = this._subscriptions[dest];
         if (sub) {
-            sub.unsubscribe();
+            try { sub.unsubscribe(); } catch (e) {}
             delete this._subscriptions[dest];
         }
     },
@@ -98,18 +109,18 @@ var WsClient = {
         self._reconnectTimer = setTimeout(function () {
             self._reconnectTimer = null;
             self.connect();
+            self._reconnectDelay = Math.min(self._reconnectDelay * 2, self._maxReconnectDelay);
         }, self._reconnectDelay);
     },
 
-    /** 断开连接 */
     disconnect: function () {
         var self = this;
-        if (self._heartbeatTimer) { clearInterval(self._heartbeatTimer); self._heartbeatTimer = null; }
         if (self._reconnectTimer) { clearTimeout(self._reconnectTimer); self._reconnectTimer = null; }
         self._connected = false;
         self._connecting = false;
         self._pendingSubs = [];
         self._subscriptions = {};
+        if (self._onStatusChange) self._onStatusChange(false);
         if (self._stompClient) {
             try { self._stompClient.disconnect(); } catch (e) {}
             self._stompClient = null;
