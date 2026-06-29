@@ -23,3 +23,7 @@ uploads/
 
 # Env
 .env
+.bitfun/
+
+# Docs
+docs/
