@@ -291,6 +291,20 @@ body {
 .role-badge.business { background: #fef3c7; color: #b45309; }
 .role-badge.admin { background: #fce7f3; color: #9d174d; }
 
+/* ===== Status Badge ===== */
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.status-badge.status-open { background: #dcfce7; color: #166534; }
+.status-badge.status-active { background: #dbeafe; color: #1d4ed8; }
+.status-badge.status-closed { background: #f1f5f9; color: #64748b; }
+.status-badge.status-ended { background: #f1f5f9; color: #94a3b8; }
+
 /* ===== File Upload ===== */
 .file-upload {
     border: 2px dashed var(--border);
