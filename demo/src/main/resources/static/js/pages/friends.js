@@ -135,6 +135,7 @@ Router.register('/friends', {
     },
 
     renderFriends: function(list) {
+        var self = this;
         var container = document.getElementById('friendList');
         if (!list || list.length === 0) {
             container.innerHTML = `
@@ -235,6 +236,7 @@ Router.register('/friends', {
 
     // ========== 加载好友请求（US-024） ==========
     loadRequests: async function() {
+        var self = this;
         var container = document.getElementById('requestList');
         var sentContainer = document.getElementById('sentRequestList');
 
@@ -334,8 +336,8 @@ Router.register('/friends', {
             });
             toast(action === 'accept' ? '✅ 已接受好友请求' : '已拒绝好友请求');
             // 刷新请求列表和好友列表
-            this.loadRequests();
-            this.loadFriends();
+            self.loadRequests();
+            self.loadFriends();
         } catch (err) {
             toast(err.message, 'error');
             btns.forEach(function(b) { b.disabled = false; b.textContent = action === 'accept' ? '接受' : '拒绝'; });
