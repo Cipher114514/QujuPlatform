@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/friends")
 @RequiredArgsConstructor
 @Slf4j
 public class FriendsController {
@@ -25,7 +25,7 @@ public class FriendsController {
     /**
      * 3.6.1 添加好友
      */
-    @PostMapping("/friends")
+    @PostMapping
     public Result<FriendRequestResponse> addFriend(
             @AuthenticationPrincipal User currentUser,
             @Valid @RequestBody FriendRequest req) {
@@ -37,7 +37,7 @@ public class FriendsController {
     /**
      * 3.6.2 处理好友请求
      */
-    @PutMapping("/friends/{id}")
+    @PutMapping("/{id}")
     public Result<FriendRequestResponse> handleFriendRequest(
             @AuthenticationPrincipal User currentUser,
             @PathVariable Long id,
@@ -50,7 +50,7 @@ public class FriendsController {
     /**
      * 3.6.3 获取好友列表
      */
-    @GetMapping("/friends")
+    @GetMapping
     public Result<List<FriendResponse>> getFriends(
             @AuthenticationPrincipal User currentUser) {
         log.info("获取好友列表: userId={}", currentUser.getId());
@@ -61,7 +61,7 @@ public class FriendsController {
     /**
      * 3.6.4 删除好友
      */
-    @DeleteMapping("/friends/{userId}")
+    @DeleteMapping("/{userId}")
     public Result<Void> deleteFriend(
             @AuthenticationPrincipal User currentUser,
             @PathVariable Long userId) {
@@ -73,7 +73,7 @@ public class FriendsController {
     /**
      * 获取待处理的好友请求（收到的）
      */
-    @GetMapping("/friends/requests/pending")
+    @GetMapping("/requests/pending")
     public Result<List<FriendRequestResponse>> getPendingRequests(
             @AuthenticationPrincipal User currentUser) {
         List<FriendRequestResponse> requests = friendshipService.getPendingRequests(currentUser.getId());
@@ -83,7 +83,7 @@ public class FriendsController {
     /**
      * 获取已发送的好友请求（发出的）
      */
-    @GetMapping("/friends/requests/sent")
+    @GetMapping("/requests/sent")
     public Result<List<FriendRequestResponse>> getSentRequests(
             @AuthenticationPrincipal User currentUser) {
         List<FriendRequestResponse> requests = friendshipService.getSentRequests(currentUser.getId());
@@ -93,7 +93,7 @@ public class FriendsController {
     /**
      * 检查好友关系
      */
-    @GetMapping("/friends/check/{userId}")
+    @GetMapping("/check/{userId}")
     public Result<Boolean> checkFriendship(
             @AuthenticationPrincipal User currentUser,
             @PathVariable Long userId) {
