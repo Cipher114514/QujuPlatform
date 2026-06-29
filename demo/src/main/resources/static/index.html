@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>趣聚 - 线下活动社交平台</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <!-- 基础库（顺序不能乱） -->
+    <script src="/js/api.js"></script>
+    <script src="/js/router.js"></script>
+    <!-- 组件 -->
+    <script src="/js/components/navbar.js"></script>
+    <!-- 页面模块（新人在这里追加自己的脚本） -->
+    <script src="/js/pages/login.js"></script>
+    <script src="/js/pages/register.js"></script>
+    <script src="/js/pages/home.js"></script>
+    <script src="/js/pages/profile.js"></script>
+    <script src="/js/pages/activities.js"></script>
+    <script src="/js/pages/friends.js"></script>
+    <!-- 关注模块 (P9) -->
+    <script src="/js/pages/discover.js"></script>
+    <script src="/js/pages/follows.js"></script>
+</head>
+<body>
+    <!-- 导航栏：登录后自动显示 -->
+    <div id="navbarSlot"></div>
+
+    <!-- 页面内容区：路由匹配后自动替换 -->
+    <div id="app"></div>
+
+    <script>
+        // ===== 启动App =====
+        var navbarSlot = document.getElementById('navbarSlot');
+
+        function updateNavbar() {
+            navbarSlot.innerHTML = Navbar.render();
+        }
+
+        // 路由切换时自动更新导航栏
+        window.addEventListener('hashchange', updateNavbar);
+        window.addEventListener('load', updateNavbar);
+
+        // 启动路由
+        Router.start();
+    </script>
+</body>
+</html>
