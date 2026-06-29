@@ -4,12 +4,14 @@
 
 const Router = {
     routes: {},
+    patternRoutes: [],   // [{ pattern: '/activity/:id', regex: /^\/activity\/([^/]+)$/, paramNames: ['id'], config }]
     currentPath: null,
     currentConfig: null,
 
     /**
      * 注册一个页面
      * @param {string} path   hash路径，如 '/login', '/register', '/home'
+     *   支持路径参数：'/activity/:id' 会匹配 '/activity/123'
      * @param {object} config {
      *   title: '页面标题',
      *   requireAuth: true|false,     // 是否需要登录
@@ -21,6 +23,22 @@ const Router = {
      */
     register(path, config) {
         this.routes[path] = config;
+
+        // 如果包含 :param，解析为模式路由
+        if (path.indexOf(':') !== -1) {
+            var paramNames = [];
+            var regexStr = '^' + path.replace(/:([^/]+)/g, function(_, name) {
+                paramNames.push(name);
+                return '([^/]+)';
+            }) + '$';
+            this.patternRoutes.push({
+                pattern: path,
+                regex: new RegExp(regexStr),
+                paramNames: paramNames,
+                config: config
+            });
+        }
+
         console.log('[Router] 已注册:', path, config.title || '');
     },
 
@@ -38,7 +56,24 @@ const Router = {
     /** 内部：加载当前哈希对应的页面 */
     _load() {
         const hash = window.location.hash.slice(1) || '/login';
-        const config = this.routes[hash];
+        var config = this.routes[hash];
+
+        // 精确匹配失败，尝试模式匹配
+        if (!config) {
+            for (var i = 0; i < this.patternRoutes.length; i++) {
+                var pr = this.patternRoutes[i];
+                var match = hash.match(pr.regex);
+                if (match) {
+                    config = pr.config;
+                    // 将路径参数挂到 config 上
+                    config._params = {};
+                    for (var j = 0; j < pr.paramNames.length; j++) {
+                        config._params[pr.paramNames[j]] = match[j + 1];
+                    }
+                    break;
+                }
+            }
+        }
 
         // 404
         if (!config) {
