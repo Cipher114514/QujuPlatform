@@ -7,7 +7,8 @@ var Navbar = {
     menus: [
         { path: '/home',       icon: '🏠', label: '首页' },
         { path: '/activities', icon: '📋', label: '活动' },
-        { path: '/friends',    icon: '💬', label: '好友' },
+        { path: '/friends',    icon: '👥', label: '好友' },
+        { path: '/chat',       icon: '💬', label: '聊天' },
         { path: '/profile',    icon: '👤', label: '资料' }
     ],
 

@@ -4,23 +4,29 @@
 
 const Router = {
     routes: {},
+    paramRoutes: {},
     currentPath: null,
     currentConfig: null,
+    currentParams: null,
 
     /**
      * 注册一个页面
-     * @param {string} path   hash路径，如 '/login', '/register', '/home'
+     * @param {string} path   hash路径，如 '/login', '/register', '/home', '/chat/:userId'
      * @param {object} config {
      *   title: '页面标题',
      *   requireAuth: true|false,     // 是否需要登录
      *   authOnly: true|false,        // 已登录用户不可访问（如登录页）
-     *   render: () => htmlString,    // 返回HTML字符串
-     *   init: () => void,            // 页面挂载后初始化（绑定事件等）
-     *   destroy: () => void          // 页面离开时清理
+     *   render: (params) => htmlString,    // 返回HTML字符串
+     *   init: (params) => void,            // 页面挂载后初始化（绑定事件等）
+     *   destroy: () => void                // 页面离开时清理
      * }
      */
     register(path, config) {
-        this.routes[path] = config;
+        if (path.includes(':')) {
+            this.paramRoutes[path] = config;
+        } else {
+            this.routes[path] = config;
+        }
         console.log('[Router] 已注册:', path, config.title || '');
     },
 
@@ -38,7 +44,33 @@ const Router = {
     /** 内部：加载当前哈希对应的页面 */
     _load() {
         const hash = window.location.hash.slice(1) || '/login';
-        const config = this.routes[hash];
+        let config = this.routes[hash];
+        let params = {};
+
+        // 精确匹配失败，尝试参数化路由
+        if (!config) {
+            const hashParts = hash.split('/');
+            for (const [pattern, patternConfig] of Object.entries(this.paramRoutes)) {
+                const patternParts = pattern.split('/');
+                if (hashParts.length === patternParts.length) {
+                    let match = true;
+                    const p = {};
+                    for (let i = 0; i < patternParts.length; i++) {
+                        if (patternParts[i].startsWith(':')) {
+                            p[patternParts[i].slice(1)] = hashParts[i];
+                        } else if (patternParts[i] !== hashParts[i]) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match) {
+                        config = patternConfig;
+                        params = p;
+                        break;
+                    }
+                }
+            }
+        }
 
         // 404
         if (!config) {
@@ -70,9 +102,10 @@ const Router = {
         // 渲染新页面
         this.currentPath = hash;
         this.currentConfig = config;
+        this.currentParams = params;
         document.title = (config.title || '趣聚') + ' - 趣聚';
-        document.getElementById('app').innerHTML = config.render();
-        if (config.init) config.init();
+        document.getElementById('app').innerHTML = config.render(params);
+        if (config.init) config.init(params);
 
         // 滚动到顶部
         window.scrollTo(0, 0);
