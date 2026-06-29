@@ -34,7 +34,7 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/favicon.ico").permitAll()
-                .requestMatchers("/auth/**", "/h2-console/**", "/ws/**").permitAll()
+                .requestMatchers("/auth/**", "/upload/**", "/h2-console/**", "/ws/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/activities/**").permitAll()
                 .requestMatchers("/admin/**").hasAuthority("ADMIN")
                 .anyRequest().authenticated()
