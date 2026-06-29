@@ -68,6 +68,9 @@ const ChatRoomPage = {
         });
 
         // 连接 WebSocket 并订阅消息
+        WsClient._onStatusChange = function (connected) {
+            console.log('[ChatRoom] WS状态: ' + (connected ? '已连接' : '已断开'));
+        };
         WsClient.connect();
         WsClient.subscribe('/user/queue/messages', function (msg) {
             self._onWsMessage(msg);
@@ -87,12 +90,17 @@ const ChatRoomPage = {
     // ========== WebSocket 消息处理 ==========
 
     _onWsMessage: function (msg) {
+        console.log('[ChatRoom] WS消息:', msg);
         if (msg.senderId !== this._targetUserId) return;
         for (var i = 0; i < this._messages.length; i++) {
             if (this._messages[i].id === msg.id) return;
         }
         this._messages.push(msg);
         if (msg.sentAt) this._lastSentAt = msg.sentAt;
+        // 如果还没有 conversationId（新会话），从 WS 消息中获取
+        if (!this._conversationId && msg.conversationId) {
+            this._conversationId = msg.conversationId;
+        }
         this._renderMessages();
         this._scrollToBottom();
     },
@@ -107,6 +115,7 @@ const ChatRoomPage = {
                 var res = await MessageAPI.newMessages(self._conversationId, self._lastSentAt);
                 var newMsgs = res.data || [];
                 if (newMsgs.length > 0) {
+                    console.log('[ChatRoom] 轮询收到 ' + newMsgs.length + ' 条新消息');
                     for (var i = 0; i < newMsgs.length; i++) {
                         // 去重
                         var exists = false;
