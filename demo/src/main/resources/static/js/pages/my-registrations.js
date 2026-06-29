@@ -1,4 +1,4 @@
-const USE_MOCK = true;
+const USE_MOCK_REG_REG = true;
 
 window._myRegPage = {
     currentStatus: '',
@@ -50,7 +50,7 @@ window._myRegPage = {
 
         try {
             var data;
-            if (USE_MOCK) {
+            if (USE_MOCK_REG) {
                 data = this.getMockData();
             } else {
                 var params = '';
@@ -128,7 +128,7 @@ window._myRegPage = {
         }
 
         try {
-            if (USE_MOCK) {
+            if (USE_MOCK_REG) {
                 toast('取消报名成功');
                 this.loadRegistrations();
             } else {

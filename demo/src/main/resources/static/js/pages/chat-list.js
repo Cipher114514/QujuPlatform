@@ -2,7 +2,7 @@
 // 路由: #/chat
 // 负责人: P7
 
-const USE_MOCK = true;
+const USE_MOCK_CHATLIST_CHATLIST = true;
 
 const ChatListPage = {
     _data: [],
@@ -29,7 +29,7 @@ const ChatListPage = {
 
         try {
             let data;
-            if (USE_MOCK) {
+            if (USE_MOCK_CHATLIST) {
                 data = MOCK_CONVERSATIONS;
             } else {
                 const res = await MessageAPI.conversations();

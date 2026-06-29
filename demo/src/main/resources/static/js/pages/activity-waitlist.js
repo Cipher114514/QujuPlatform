@@ -1,4 +1,4 @@
-const USE_MOCK = true;
+const USE_MOCK_WAITLIST_WAITLIST = true;
 
 window._waitlistPage = {
     activityId: null,
@@ -39,7 +39,7 @@ window._waitlistPage = {
 
         try {
             var data;
-            if (USE_MOCK) {
+            if (USE_MOCK_WAITLIST) {
                 data = this.getMockWaitlistData();
             } else {
                 var res = await api('/activities/' + this.activityId + '/waitlist');
@@ -124,7 +124,7 @@ window._waitlistPage = {
 
     joinWaitlist: async function() {
         try {
-            if (USE_MOCK) {
+            if (USE_MOCK_WAITLIST) {
                 toast('已加入等待队列');
                 this.loadWaitlistStatus();
             } else {
@@ -143,7 +143,7 @@ window._waitlistPage = {
         }
 
         try {
-            if (USE_MOCK) {
+            if (USE_MOCK_WAITLIST) {
                 toast('已退出等待队列');
                 this.loadWaitlistStatus();
             } else {

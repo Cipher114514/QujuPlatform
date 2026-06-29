@@ -48,6 +48,11 @@ const Router = {
         window.location.hash = path;
     },
 
+    /** 获取当前路由参数 */
+    getParams() {
+        return this.currentParams || {};
+    },
+
     /** 启动路由监听 */
     start() {
         window.addEventListener('hashchange', () => this._load());
