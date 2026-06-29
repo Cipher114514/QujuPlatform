@@ -2,7 +2,7 @@
 // 路由: #/chat
 // 负责人: P7
 
-const USE_MOCK_CHATLIST_CHATLIST = true;
+const USE_MOCK_CHATLIST = true;
 
 const ChatListPage = {
     _data: [],
