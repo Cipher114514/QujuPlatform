@@ -566,3 +566,364 @@ body {
     font-size: 11px;
     color: var(--text-secondary);
 }
+
+/* ===== AI创建 + 我的活动 (m2) ===== */
+.form-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color .2s;
+    background: #f8fafc;
+    color: var(--text);
+}
+.form-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(79,70,229,.1);
+}
+
+.form-row {
+    display: flex;
+    gap: 12px;
+}
+.form-row .form-group {
+    flex: 1;
+}
+
+.tab-bar {
+    display: flex;
+    border-bottom: 2px solid var(--border);
+}
+.tab-btn {
+    flex: 1;
+    padding: 12px 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all .2s;
+}
+.tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+.tab-btn:hover { color: var(--text); }
+
+.template-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.template-card {
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+}
+.template-card:hover {
+    border-color: var(--primary);
+    box-shadow: 0 2px 8px rgba(79,70,229,.12);
+    transform: translateY(-1px);
+}
+.template-card .template-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+}
+.template-card .template-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+.template-card .template-cat {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.my-activity-card {
+    cursor: default !important;
+}
+.my-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+.my-card-header .title {
+    font-size: 16px;
+    font-weight: 700;
+    flex: 1;
+}
+.my-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+}
+
+/* ===== Discover Page (m8) ===== */
+.discover-page {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 24px 20px;
+}
+.discover-header {
+    margin-bottom: 24px;
+}
+.discover-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.discover-header .subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+.search-section {
+    margin-bottom: 20px;
+}
+.search-box {
+    display: flex;
+    gap: 8px;
+}
+.search-box input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+}
+.search-box input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(79,70,229,.1);
+}
+.search-box button {
+    padding: 12px 20px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .2s;
+}
+.search-box button:hover {
+    background: var(--primary-hover);
+}
+.section-title {
+    margin-bottom: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+}
+.user-list {
+    display: grid;
+    gap: 16px;
+}
+.user-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    transition: box-shadow .2s;
+}
+.user-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+.user-card-header {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.user-avatar-link {
+    flex-shrink: 0;
+}
+.user-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+.user-info {
+    flex: 1;
+    min-width: 0;
+}
+.user-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.user-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    text-decoration: none;
+}
+.user-name:hover {
+    color: var(--primary);
+}
+.business-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #fef3c7;
+    color: #b45309;
+}
+.user-bio {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.user-stats {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.user-card-actions {
+    display: flex;
+    gap: 8px;
+}
+.user-card-actions .btn {
+    flex: 1;
+}
+.btn-secondary {
+    background: #f1f5f9;
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+.btn-secondary:hover {
+    background: #e2e8f0;
+}
+
+/* ===== Follows Page (m8) ===== */
+.follows-page {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 24px 20px;
+}
+.follows-header {
+    margin-bottom: 20px;
+}
+.follows-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+}
+.tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--border);
+}
+.tabs .tab-btn {
+    padding: 12px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    cursor: pointer;
+    transition: all .2s;
+    flex: initial;
+}
+.tabs .tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+.follow-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.follow-item {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+.follow-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.follow-info {
+    flex: 1;
+    min-width: 0;
+}
+.follow-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.follow-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    text-decoration: none;
+}
+.follow-name:hover {
+    color: var(--primary);
+}
+.friend-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #dcfce7;
+    color: #166534;
+}
+.follower-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+.follow-bio {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.follow-time {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.follow-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-shrink: 0;
+}

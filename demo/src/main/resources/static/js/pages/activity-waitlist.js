@@ -1,4 +1,4 @@
-const USE_MOCK_WAITLIST = true;
+const USE_MOCK_WAITLIST = false;
 
 window._waitlistPage = {
     activityId: null,

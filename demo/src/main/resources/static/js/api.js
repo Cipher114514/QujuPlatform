@@ -67,7 +67,12 @@ var UploadAPI = {
 
 // ===== 以下由各模块开发者按需追加 =====
 var ActivityAPI = {
-    create: function(body) { return api('/activities', { method: 'POST', body: body }); }
+    create: function(body) { return api('/activities', { method: 'POST', body: body }); },
+    list:   function(params) {
+        var qs = Object.keys(params).filter(function(k) { return params[k] !== undefined && params[k] !== null && params[k] !== ''; })
+            .map(function(k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
+        return api('/activities' + (qs ? '?' + qs : ''));
+    }
 };
 // var FriendAPI   = { ... };
 

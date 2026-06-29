@@ -28,19 +28,46 @@ Router.register('/login', {
             <div class="form-footer"><a href="#/register">还没有账号？立即注册</a></div>
             <div class="card" style="margin-top:20px;background:#f8fafc;">
                 <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">测试账号（点击快速填充）：</p>
-                <button class="btn btn-outline btn-sm" style="margin-bottom:6px;text-align:left;"
-                    onclick="document.getElementById('loginEmail').value='user@test.com';document.getElementById('loginPwd').value='test1234'">
-                    👤 个人用户: user@test.com
-                </button>
-                <button class="btn btn-outline btn-sm" style="text-align:left;"
-                    onclick="document.getElementById('loginEmail').value='business@test.com';document.getElementById('loginPwd').value='test1234'">
-                    🏪 商家用户: business@test.com
-                </button>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                    <button class="btn btn-outline btn-sm" style="text-align:left;font-size:12px;"
+                        onclick="document.getElementById('loginEmail').value='admin@platform.com';document.getElementById('loginPwd').value='test1234'">
+                        ⭐ admin@platform.com
+                    </button>
+                    <button class="btn btn-outline btn-sm" style="text-align:left;font-size:12px;"
+                        onclick="document.getElementById('loginEmail').value='zhangsan@test.com';document.getElementById('loginPwd').value='test1234'">
+                        👤 张三
+                    </button>
+                    <button class="btn btn-outline btn-sm" style="text-align:left;font-size:12px;"
+                        onclick="document.getElementById('loginEmail').value='lisi@test.com';document.getElementById('loginPwd').value='test1234'">
+                        👤 李四
+                    </button>
+                    <button class="btn btn-outline btn-sm" style="text-align:left;font-size:12px;"
+                        onclick="document.getElementById('loginEmail').value='wangwu@test.com';document.getElementById('loginPwd').value='test1234'">
+                        👤 王五
+                    </button>
+                    <button class="btn btn-outline btn-sm" style="text-align:left;font-size:12px;"
+                        onclick="document.getElementById('loginEmail').value='zhouba@test.com';document.getElementById('loginPwd').value='test1234'">
+                        🏪 周八的运动馆
+                    </button>
+                    <button class="btn btn-outline btn-sm" style="text-align:left;font-size:12px;"
+                        onclick="document.getElementById('loginEmail').value='zhengshi@test.com';document.getElementById('loginPwd').value='test1234'">
+                        🏪 郑十的桌游吧
+                    </button>
+                </div>
+                <p style="font-size:11px;color:var(--text-secondary);margin-top:6px;">所有测试账号密码: test1234</p>
             </div>
         </div>`;
     },
 
     init: function() {
+        // 读取 URL 参数自动填充邮箱
+        var hash = window.location.hash.slice(1);
+        var m = hash.match(/[?&]email=([^&]*)/);
+        if (m) {
+            document.getElementById('loginEmail').value = decodeURIComponent(m[1]);
+            document.getElementById('loginPwd').focus();
+        }
+
         document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             var alertEl = document.getElementById('loginAlert');

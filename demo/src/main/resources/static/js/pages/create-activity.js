@@ -122,6 +122,13 @@ Router.register('/create-activity', {
 
     init: function() {
         bindFormEvents();
+        // 检查克隆入口
+        var hash = window.location.hash;
+        var cloneIdx = hash.indexOf('?cloneFrom=');
+        if (cloneIdx > -1) {
+            var cloneId = parseInt(hash.substring(cloneIdx + '?cloneFrom='.length));
+            if (cloneId) loadCloneDataToForm(cloneId);
+        }
     }
 });
 
@@ -274,4 +281,64 @@ async function submitActivity(data) {
 
 function sleep(ms) {
     return new Promise(function(resolve) { setTimeout(resolve, ms); });
+}
+
+// ===== 克隆活动数据加载 =====
+var CLONE_CAT_MAP = {
+    'sports': '运动健身',
+    'hiking': '户外徒步',
+    'boardgame': '桌游聚会',
+    'study': '学习交流',
+    'charity': '公益活动',
+    'citywalk': '城市探索'
+};
+
+async function loadCloneDataToForm(cloneId) {
+    toast('正在加载克隆数据...');
+    try {
+        var res;
+        if (CREATE_USE_MOCK) {
+            res = {
+                data: {
+                    title: '周末篮球局（克隆）',
+                    description: '一起打篮球',
+                    category: 'sports',
+                    location: '朝阳公园',
+                    maxParticipants: 20,
+                    fee: 0,
+                    tags: '篮球, 运动',
+                    coverImage: ''
+                }
+            };
+        } else {
+            res = await api('/activities/' + cloneId + '/clone', { method: 'POST' });
+        }
+
+        var d = res.data;
+        setFieldVal('actTitle', d.title || '');
+        setFieldVal('actCategory', CLONE_CAT_MAP[d.category] || '');
+        setFieldVal('actDesc', d.description || '');
+        setFieldVal('actLocation', d.location || '');
+        setFieldVal('actMaxParticipants', d.maxParticipants || 20);
+        setFieldVal('actFee', d.fee || 0);
+        setFieldVal('actTags', Array.isArray(d.tags) ? d.tags.join(', ') : (d.tags || ''));
+        setFieldVal('actCover', d.coverImage || '');
+
+        // 更新字数统计
+        var titleEl = document.getElementById('actTitle');
+        var descEl = document.getElementById('actDesc');
+        var titleCount = document.getElementById('titleCount');
+        var descCount = document.getElementById('descCount');
+        if (titleEl && titleCount) titleCount.textContent = titleEl.value.length;
+        if (descEl && descCount) descCount.textContent = descEl.value.length;
+
+        toast('已加载克隆数据，请设置时间后发布');
+    } catch (err) {
+        toast(err.message || '加载克隆数据失败', 'error');
+    }
+}
+
+function setFieldVal(id, val) {
+    var el = document.getElementById(id);
+    if (el) el.value = val;
 }

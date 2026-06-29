@@ -1,4 +1,4 @@
-const USE_MOCK_REG = true;
+const USE_MOCK_REG = false;
 
 window._myRegPage = {
     currentStatus: '',

@@ -3,7 +3,7 @@
 // 负责：展示活动完整信息 + 报名功能
 // 不写取消报名和等待队列逻辑，只做跳转链接
 
-var USE_MOCK = true;
+var USE_MOCK = false;
 
 Router.register('/activity/:id', {
     title: '活动详情',
