@@ -41,15 +41,17 @@ public class ActivityDetailService {
                     .build();
         }
 
-        // 查询当前用户的报名状态
+        // 查询当前用户的报名状态（未登录则跳过）
         ActivityDetailResponse.MyRegistrationInfo myReg = null;
-        Optional<Registration> reg = registrationRepository
-                .findByActivityIdAndUserId(activityId, currentUserId);
-        if (reg.isPresent()) {
-            myReg = ActivityDetailResponse.MyRegistrationInfo.builder()
-                    .id(reg.get().getId())
-                    .status(reg.get().getStatus())
-                    .build();
+        if (currentUserId != null) {
+            Optional<Registration> reg = registrationRepository
+                    .findByActivityIdAndUserId(activityId, currentUserId);
+            if (reg.isPresent()) {
+                myReg = ActivityDetailResponse.MyRegistrationInfo.builder()
+                        .id(reg.get().getId())
+                        .status(reg.get().getStatus())
+                        .build();
+            }
         }
 
         // 解析 tags（逗号分隔字符串 → 列表）

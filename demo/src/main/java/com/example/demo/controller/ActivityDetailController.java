@@ -18,11 +18,12 @@ public class ActivityDetailController {
     private final ActivityDetailService activityDetailService;
     private final RegistrationService registrationService;
 
-    /** 获取活动详情（含当前用户报名状态） */
+    /** 获取活动详情（含当前用户报名状态，未登录用户 myRegistration 为 null） */
     @GetMapping("/{id}")
     public Result<ActivityDetailResponse> getDetail(@PathVariable Long id,
                                                      @AuthenticationPrincipal User currentUser) {
-        return Result.ok(activityDetailService.getDetail(id, currentUser.getId()));
+        Long userId = currentUser != null ? currentUser.getId() : null;
+        return Result.ok(activityDetailService.getDetail(id, userId));
     }
 
     /** 报名活动 */
