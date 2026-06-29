@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 测试面板</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; min-height: 100vh; }
+        .container { max-width: 700px; margin: 0 auto; }
+        h1 { color: #e94560; margin-bottom: 20px; font-size: 22px; }
+        .panel { background: #16213e; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .panel h2 { font-size: 15px; color: #0f3460; background: #e94560; display: inline-block; padding: 4px 12px; border-radius: 4px; margin-bottom: 12px; }
+        label { display: block; font-size: 13px; margin: 8px 0 4px; color: #a0a0b0; }
+        input, select { width: 100%; padding: 8px 12px; border: 1px solid #0f3460; border-radius: 4px; background: #1a1a2e; color: #e0e0e0; font-size: 14px; }
+        input:focus { outline: none; border-color: #e94560; }
+        .row { display: flex; gap: 10px; }
+        .row > * { flex: 1; }
+        button { padding: 8px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600; }
+        .btn-primary { background: #e94560; color: white; }
+        .btn-primary:hover { background: #d63851; }
+        .btn-green { background: #2ecc71; color: white; }
+        .btn-green:hover { background: #27ae60; }
+        .btn-red { background: #e74c3c; color: white; }
+        .btn-red:hover { background: #c0392b; }
+        .btn-outline { background: transparent; border: 1px solid #e94560; color: #e94560; }
+        .status { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+        .status-green { background: #2ecc71; box-shadow: 0 0 6px #2ecc71; }
+        .status-red { background: #e74c3c; box-shadow: 0 0 6px #e74c3c; }
+        .status-yellow { background: #f39c12; box-shadow: 0 0 6px #f39c12; }
+        #log { background: #0d1117; border-radius: 4px; padding: 12px; height: 280px; overflow-y: auto; font-family: 'JetBrains Mono', 'Cascadia Code', monospace; font-size: 12px; line-height: 1.6; }
+        .log-item { margin-bottom: 2px; }
+        .log-info { color: #58a6ff; }
+        .log-success { color: #2ecc71; }
+        .log-error { color: #e74c3c; }
+        .log-send { color: #f39c12; }
+        .log-receive { color: #a371f7; }
+        .log-system { color: #8b949e; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+        .badge-online { background: #2ecc71; color: #000; }
+        .badge-offline { background: #e74c3c; color: #fff; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>WebSocket 测试面板</h1>
+
+    <!-- 1. 登录获取 JWT -->
+    <div class="panel">
+        <h2>步骤 1: 登录获取 JWT</h2>
+        <div class="row">
+            <div><label>邮箱</label><input type="text" id="loginEmail" value="user@test.com"></div>
+            <div><label>密码</label><input type="password" id="loginPwd" value="test1234"></div>
+        </div>
+        <button class="btn-primary" onclick="doLogin()" style="margin-top:10px">登录</button>
+        <div style="margin-top:8px;font-size:13px">
+            <span>Token:</span>
+            <span id="tokenStatus" style="color:#e74c3c">未获取</span>
+            <input type="hidden" id="jwtToken">
+        </div>
+    </div>
+
+    <!-- 2. WebSocket 连接 -->
+    <div class="panel">
+        <h2>步骤 2: 连接 WebSocket <span id="wsStatus" class="badge badge-offline">未连接</span></h2>
+        <button class="btn-green" onclick="connectWS()" id="btnConnect">连接</button>
+        <button class="btn-red" onclick="disconnectWS()" id="btnDisconnect" disabled>断开</button>
+        <span style="font-size:13px;margin-left:10px">端点: /ws?token=&lt;JWT&gt;</span>
+    </div>
+
+    <!-- 3. 发送测试消息 -->
+    <div class="panel">
+        <h2>步骤 3: 发送测试消息</h2>
+        <label>发给自己测试: 目标用户ID (填自己的ID即可环回)</label>
+        <div class="row">
+            <input type="number" id="targetUserId" value="2" style="flex:2">
+            <button class="btn-primary" onclick="sendTestMessage()" id="btnSend" disabled>发送</button>
+        </div>
+        <label>消息内容</label>
+        <input type="text" id="msgContent" value="Hello WebSocket!">
+        <div style="margin-top:8px;font-size:12px;color:#8b949e">
+            STOMP 发送路径: /app/chat &nbsp;|&nbsp; 订阅路径: /user/queue/messages
+        </div>
+    </div>
+
+    <!-- 4. 日志 -->
+    <div class="panel">
+        <h2>日志</h2>
+        <div id="log"></div>
+        <button class="btn-outline" onclick="clearLog()" style="margin-top:8px">清空</button>
+    </div>
+</div>
+
+<script>
+    const logEl = document.getElementById('log');
+    let stompClient = null;
+    let myUserId = null;
+
+    function log(msg, type) {
+        const time = new Date().toLocaleTimeString();
+        logEl.innerHTML += `<div class="log-item log-${type}">[${time}] ${msg}</div>`;
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearLog() { logEl.innerHTML = ''; }
+
+    // ========== 登录 ==========
+    async function doLogin() {
+        const email = document.getElementById('loginEmail').value;
+        const pwd = document.getElementById('loginPwd').value;
+        log('正在登录: ' + email, 'info');
+        try {
+            const res = await fetch('/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password: pwd })
+            });
+            const json = await res.json();
+            if (json.code === 200) {
+                document.getElementById('jwtToken').value = json.data.token;
+                myUserId = json.data.user.id;
+                document.getElementById('tokenStatus').innerHTML =
+                    '<span style="color:#2ecc71">已获取 (userId=' + myUserId + ', role=' + json.data.user.role + ')</span>';
+                document.getElementById('targetUserId').value = myUserId;
+                log('登录成功: userId=' + myUserId + ', 请点击"连接"', 'success');
+            } else {
+                log('登录失败: ' + json.message, 'error');
+            }
+        } catch (e) {
+            log('登录异常: ' + e.message, 'error');
+        }
+    }
+
+    // ========== WebSocket 连接 ==========
+    function connectWS() {
+        const token = document.getElementById('jwtToken').value;
+        if (!token) {
+            log('请先登录获取 Token', 'error');
+            return;
+        }
+
+        const wsUrl = '/ws?token=' + token;
+        log('正在连接: ' + wsUrl, 'info');
+
+        // STOMP over SockJS
+        stompClient = new StompJs.Client({
+            webSocketFactory: function() { return new SockJS('/ws?token=' + token); },
+            debug: function(str) { log('STOMP: ' + str, 'system'); },
+            reconnectDelay: 5000,
+            heartbeatIncoming: 10000,
+            heartbeatOutgoing: 10000,
+        });
+
+        stompClient.onConnect = function(frame) {
+            log('STOMP 连接成功!', 'success');
+            setWSStatus('online');
+
+            // 订阅个人消息队列 (Spring 的 /user/queue/messages)
+            stompClient.subscribe('/user/queue/messages', function(msg) {
+                const body = JSON.parse(msg.body);
+                log('收到消息: ' + JSON.stringify(body), 'receive');
+            });
+
+            // 订阅广播频道
+            stompClient.subscribe('/topic/announcements', function(msg) {
+                log('收到广播: ' + msg.body, 'receive');
+            });
+
+            log('已订阅: /user/queue/messages, /topic/announcements', 'info');
+        };
+
+        stompClient.onStompError = function(frame) {
+            log('STOMP 错误: ' + (frame.headers['message'] || '未知'), 'error');
+            setWSStatus('offline');
+        };
+
+        stompClient.onWebSocketClose = function(evt) {
+            log('WebSocket 断开 (code=' + evt.code + ')', 'error');
+            setWSStatus('offline');
+        };
+
+        stompClient.activate();
+        document.getElementById('btnConnect').disabled = true;
+        document.getElementById('btnDisconnect').disabled = false;
+        document.getElementById('btnSend').disabled = false;
+    }
+
+    function disconnectWS() {
+        if (stompClient) {
+            stompClient.deactivate();
+            log('主动断开连接', 'info');
+            setWSStatus('offline');
+            document.getElementById('btnConnect').disabled = false;
+            document.getElementById('btnDisconnect').disabled = true;
+            document.getElementById('btnSend').disabled = true;
+        }
+    }
+
+    function setWSStatus(status) {
+        const el = document.getElementById('wsStatus');
+        if (status === 'online') {
+            el.className = 'badge badge-online';
+            el.textContent = '已连接';
+        } else {
+            el.className = 'badge badge-offline';
+            el.textContent = '未连接';
+        }
+    }
+
+    // ========== 发送消息 ==========
+    function sendTestMessage() {
+        if (!stompClient || !stompClient.connected) {
+            log('WebSocket 未连接', 'error');
+            return;
+        }
+
+        const targetId = document.getElementById('targetUserId').value;
+        const content = document.getElementById('msgContent').value;
+
+        if (!targetId || !content) {
+            log('请填写目标用户ID和消息内容', 'error');
+            return;
+        }
+
+        const msg = {
+            type: 'send_message',
+            payload: {
+                targetUserId: parseInt(targetId),
+                content: content
+            }
+        };
+
+        stompClient.publish({
+            destination: '/app/chat',
+            body: JSON.stringify(msg)
+        });
+
+        log('发送 → /app/chat: ' + JSON.stringify(msg), 'send');
+    }
+</script>
+</body>
+</html>

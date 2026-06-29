@@ -30,10 +30,10 @@ dependencies {
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
 	// H2 for dev (单人快速启动,无需安装MySQL)
-	runtimeOnly 'com.h2database:h2'
+	// runtimeOnly 'com.h2database:h2'
 
-	// MySQL (团队协作时使用,取消下面注释并注释掉H2)
-	// runtimeOnly 'com.mysql:mysql-connector-j'
+	// MySQL (团队协作)
+	runtimeOnly 'com.mysql:mysql-connector-j'
 
 	// Lombok
 	compileOnly 'org.projectlombok:lombok'

@@ -33,7 +33,7 @@ public class SecurityConfig {
             .csrf(c -> c.disable())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/favicon.ico").permitAll()
+                .requestMatchers("/", "/index.html", "/ws-test.html", "/css/**", "/js/**", "/favicon.ico").permitAll()
                 .requestMatchers("/auth/**", "/upload/**", "/h2-console/**", "/ws/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/activities/**").permitAll()
                 .requestMatchers("/admin/**").hasAuthority("ADMIN")
