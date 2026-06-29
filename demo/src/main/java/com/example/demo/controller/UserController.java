@@ -48,7 +48,7 @@ public class UserController {
         } catch (NumberFormatException ignored) {}
 
         // 2. 按昵称模糊匹配
-        users.addAll(userRepository.findByNicknameContaining(keyword));
+        users.addAll(userRepository.findByNicknameContainingIgnoreCase(keyword));
 
         List<UserSearchResult> results = users.stream()
                 .map(u -> new UserSearchResult(u.getId(), u.getNickname(), u.getAvatar(), u.getBio()))

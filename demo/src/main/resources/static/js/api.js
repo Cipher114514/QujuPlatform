@@ -95,3 +95,13 @@ var MessageAPI = {
         return api('/messages/conversations/' + conversationId + '/new?since=' + encodeURIComponent(since));
     }
 };
+
+// ===== 关注与发现模块 (P9) =====
+var FollowAPI = {
+    follow:      function(userId) { return api('/follow', { method:'POST', body:{ userId: userId } }); },
+    unfollow:    function(userId) { return api('/follow/' + userId, { method:'DELETE' }); },
+    following:   function()       { return api('/follow/following'); },
+    followers:   function()       { return api('/follow/followers'); },
+    search:      function(nickname) { return api('/users/search?nickname=' + encodeURIComponent(nickname)); },
+    recommended: function(limit)  { return api('/users/recommended?limit=' + (limit || 10)); }
+};

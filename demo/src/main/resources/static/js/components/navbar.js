@@ -10,6 +10,8 @@ var Navbar = {
         { path: '/activities', icon: '📋', label: '活动' },
         { path: '/friends',    icon: '👥', label: '好友' },
         { path: '/chat',       icon: '💬', label: '聊天' },
+        { path: '/discover',   icon: '🔍', label: '发现' },
+        { path: '/follows',    icon: '⭐', label: '关注' },
         { path: '/profile',    icon: '👤', label: '资料' }
     ],
 
