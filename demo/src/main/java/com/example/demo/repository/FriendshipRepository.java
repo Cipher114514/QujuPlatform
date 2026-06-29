@@ -69,4 +69,16 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
            "(f.fromUserId = :userId1 AND f.toUserId = :userId2) OR " +
            "(f.fromUserId = :userId2 AND f.toUserId = :userId1)")
     void deleteBetweenUsers(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
+
+    /** 查找两个用户之间的所有好友关系（不区分方向，任意状态） */
+    @Query("SELECT f FROM Friendship f WHERE " +
+           "(f.fromUserId = :userId1 AND f.toUserId = :userId2) OR " +
+           "(f.fromUserId = :userId2 AND f.toUserId = :userId1)")
+    List<Friendship> findFriendshipsBetweenUsers(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
+
+    /** 检查两个用户之间是否存在好友关系（不区分方向，任意状态） */
+    @Query("SELECT COUNT(f) > 0 FROM Friendship f WHERE " +
+           "(f.fromUserId = :userId1 AND f.toUserId = :userId2) OR " +
+           "(f.fromUserId = :userId2 AND f.toUserId = :userId1)")
+    boolean existsFriendshipBetweenUsers(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
 }

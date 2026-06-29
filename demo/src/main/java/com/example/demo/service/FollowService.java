@@ -1,4 +1,4 @@
-﻿package com.example.demo.service;
+package com.example.demo.service;
 
 import com.example.demo.dto.FollowResponse;
 import com.example.demo.dto.UserListItemResponse;
