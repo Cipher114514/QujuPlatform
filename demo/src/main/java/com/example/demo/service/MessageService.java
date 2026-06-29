@@ -10,8 +10,10 @@ import com.example.demo.repository.UserRepository;
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MessageService {
@@ -28,6 +31,7 @@ public class MessageService {
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     // ---------- 会话列表 ----------
 
@@ -144,7 +148,7 @@ public class MessageService {
         }
         conversationRepository.save(conv);
 
-        return MessageItem.builder()
+        MessageItem result = MessageItem.builder()
                 .id(msg.getId())
                 .senderId(msg.getSenderId())
                 .content(msg.getContent())
@@ -152,6 +156,13 @@ public class MessageService {
                 .sentAt(msg.getSentAt())
                 .conversationId(conv.getId())
                 .build();
+
+        // WebSocket 实时推送给接收方
+        messagingTemplate.convertAndSendToUser(
+                targetUserId.toString(), "/queue/messages", result);
+        log.info("WS推送: sender={} -> receiver={}, msgId={}", senderId, targetUserId, msg.getId());
+
+        return result;
     }
 
     // ---------- 标记已读 ----------

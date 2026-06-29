@@ -1,23 +1,19 @@
 // ====== 聊天窗口页 ======
 // 路由: #/chat/:userId
-// 负责人: P7
-
-const USE_MOCK_CHAT = true;
+// 负责人: P7 — WebSocket 实时通信改造 (P8 集成)
 
 const ChatRoomPage = {
     _conversationId: null,
     _targetUserId: null,
     _targetUser: null,
     _messages: [],
-    _lastSentAt: null,
-    _pollTimer: null,
     _page: 1,
     _hasMore: true,
     _loading: false,
 
     render: function (params) {
-        const tu = this._targetUser || {};
-        const nickname = tu.nickname || '聊天';
+        var tu = this._targetUser || {};
+        var nickname = tu.nickname || '聊天';
         return `
         <div class="container chat-room-container">
             <div class="chat-header">
@@ -36,7 +32,6 @@ const ChatRoomPage = {
     },
 
     init: function (params) {
-        // 从路由参数获取 userId
         var userId = params && params.userId ? parseInt(params.userId) : null;
         if (!userId) {
             Router.navigate('/chat');
@@ -44,20 +39,17 @@ const ChatRoomPage = {
         }
         this._targetUserId = userId;
 
-        const self = this;
+        var self = this;
 
-        // 返回按钮
         document.getElementById('chatBackBtn').addEventListener('click', function () {
             Router.navigate('/chat');
         });
 
-        // 发送按钮
         document.getElementById('chatSendBtn').addEventListener('click', function () {
             self._sendMessage();
         });
 
-        // Enter 发送, Shift+Enter 换行
-        const input = document.getElementById('chatInput');
+        var input = document.getElementById('chatInput');
         input.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -66,179 +58,136 @@ const ChatRoomPage = {
         });
 
         // 滚动加载历史
-        const msgArea = document.getElementById('chatMessages');
+        var msgArea = document.getElementById('chatMessages');
         msgArea.addEventListener('scroll', function () {
             if (msgArea.scrollTop < 50 && self._hasMore && !self._loading) {
                 self._loadMoreHistory();
             }
         });
 
-        // 加载数据和开启轮询
+        // 连接 WebSocket 并订阅消息
+        WsClient.connect();
+        WsClient.subscribe('/user/queue/messages', function (msg) {
+            self._onWsMessage(msg);
+        });
+
         this._loadData();
     },
 
     destroy: function () {
-        if (this._pollTimer) {
-            clearInterval(this._pollTimer);
-            this._pollTimer = null;
+        WsClient.unsubscribe('/user/queue/messages');
+    },
+
+    // ========== WebSocket 消息处理 ==========
+
+    _onWsMessage: function (msg) {
+        // 只处理当前聊天对象发来的消息
+        if (msg.senderId !== this._targetUserId) return;
+
+        // 去重
+        for (var i = 0; i < this._messages.length; i++) {
+            if (this._messages[i].id === msg.id) return;
         }
+
+        this._messages.push(msg);
+        this._renderMessages();
+        this._scrollToBottom();
     },
 
     // ========== 数据加载 ==========
 
     _loadData: async function () {
+        var self = this;
+        var curUser = getCurUser();
+
         try {
-            if (USE_MOCK_CHAT) {
-                this._conversationId = 1;
-                this._targetUser = { id: this._targetUserId, nickname: '小明', avatar: '' };
+            // 从会话列表找目标用户信息
+            var convRes = await MessageAPI.conversations();
+            var convs = convRes.data || [];
+            var foundConv = null;
+            for (var i = 0; i < convs.length; i++) {
+                if (convs[i].targetUser && convs[i].targetUser.id === self._targetUserId) {
+                    foundConv = convs[i];
+                    break;
+                }
+            }
 
-                // 模拟根据 targetUserId 选择不同的 mock 对话
-                if (this._targetUserId === 2) {
-                    this._messages = [...MOCK_MESSAGES_USER2];
-                } else if (this._targetUserId === 3) {
-                    this._targetUser = { id: 3, nickname: '小红', avatar: '' };
-                    this._messages = [...MOCK_MESSAGES_USER3];
-                } else {
-                    this._targetUser = { id: this._targetUserId, nickname: '用户' + this._targetUserId, avatar: '' };
-                    this._messages = [];
-                }
-
-                if (this._messages.length > 0) {
-                    this._lastSentAt = this._messages[this._messages.length - 1].sentAt;
-                }
-            } else {
-                // 发送任意消息以获取/创建 conversationId
-                // 先从会话列表找到或通过获取消息历史来定位
-                const res = await MessageAPI.conversations();
-                const convs = res.data || [];
-                let foundConv = null;
-                for (let i = 0; i < convs.length; i++) {
-                    if (convs[i].targetUser && convs[i].targetUser.id === this._targetUserId) {
-                        foundConv = convs[i];
-                        break;
-                    }
-                }
-
-                if (foundConv) {
-                    this._conversationId = foundConv.conversationId;
-                    this._targetUser = foundConv.targetUser;
-                    // 标记已读
-                    MessageAPI.markRead(this._conversationId).catch(function () {});
-                } else {
-                    // 没有历史会话，等发第一条消息时创建
-                    this._targetUser = { id: this._targetUserId, nickname: '用户' + this._targetUserId, avatar: '' };
-                }
+            if (foundConv) {
+                self._conversationId = foundConv.conversationId;
+                self._targetUser = foundConv.targetUser;
+                MessageAPI.markRead(self._conversationId).catch(function () {});
 
                 // 加载历史消息
-                if (this._conversationId) {
-                    const msgRes = await MessageAPI.messages(this._conversationId, 1, 20);
-                    const pageData = msgRes.data;
-                    this._messages = (pageData.list || []).reverse();
-                    this._hasMore = (pageData.pagination && pageData.pagination.page < pageData.pagination.pages);
-                    this._page = 1;
-                    if (this._messages.length > 0) {
-                        this._lastSentAt = this._messages[this._messages.length - 1].sentAt;
+                var msgRes = await MessageAPI.messages(self._conversationId, 1, 20);
+                var pageData = msgRes.data;
+                self._messages = (pageData.list || []).reverse();
+                self._hasMore = pageData.pagination && pageData.pagination.page < pageData.pagination.pages;
+                self._page = 1;
+            } else {
+                // 无历史会话，从 user search 获取用户信息
+                try {
+                    var searchRes = await api('/users/search?keyword=' + self._targetUserId);
+                    var users = searchRes.data || [];
+                    if (users.length > 0) {
+                        self._targetUser = { id: users[0].id, nickname: users[0].nickname, avatar: users[0].avatar };
                     }
+                } catch (e) {}
+                if (!self._targetUser) {
+                    self._targetUser = { id: self._targetUserId, nickname: '用户' + self._targetUserId, avatar: '' };
                 }
             }
         } catch (e) {
             console.error('加载聊天数据失败:', e);
+            self._targetUser = { id: self._targetUserId, nickname: '用户' + self._targetUserId, avatar: '' };
         }
 
-        this._renderMessages();
-        this._scrollToBottom();
-        this._startPolling();
+        // 更新标题
+        var headerName = document.querySelector('.chat-header span');
+        if (headerName && self._targetUser) {
+            headerName.textContent = self._targetUser.nickname || '聊天';
+        }
+
+        self._renderMessages();
+        self._scrollToBottom();
     },
 
     _loadMoreHistory: async function () {
         if (this._loading || !this._hasMore) return;
         this._loading = true;
-        const nextPage = this._page + 1;
+        var nextPage = this._page + 1;
+        var self = this;
 
         try {
-            if (USE_MOCK_CHAT) {
-                // mock 无更多历史
-                this._hasMore = false;
-            } else {
-                const res = await MessageAPI.messages(this._conversationId, nextPage, 20);
-                const pageData = res.data;
-                const older = (pageData.list || []).reverse();
-                this._messages = older.concat(this._messages);
-                this._page = nextPage;
-                this._hasMore = (pageData.pagination && pageData.pagination.page < pageData.pagination.pages);
-            }
+            var res = await MessageAPI.messages(self._conversationId, nextPage, 20);
+            var pageData = res.data;
+            var older = (pageData.list || []).reverse();
+            self._messages = older.concat(self._messages);
+            self._page = nextPage;
+            self._hasMore = pageData.pagination && pageData.pagination.page < pageData.pagination.pages;
         } catch (e) {
             console.error('加载历史失败:', e);
         }
 
-        this._loading = false;
-        this._renderMessages(true);
-    },
-
-    // ========== 轮询 ==========
-
-    _startPolling: function () {
-        const self = this;
-        if (this._pollTimer) clearInterval(this._pollTimer);
-
-        this._pollTimer = setInterval(async function () {
-            if (USE_MOCK_CHAT) {
-                // mock 模式下模拟对方发消息
-                if (Math.random() < 0.3 && self._messages.length < 20) {
-                    const newId = self._messages.length + 100;
-                    const newMsg = {
-                        id: newId,
-                        senderId: self._targetUserId,
-                        content: MOCK_REPLIES[Math.floor(Math.random() * MOCK_REPLIES.length)],
-                        status: 'DELIVERED',
-                        sentAt: new Date().toISOString()
-                    };
-                    self._messages.push(newMsg);
-                    self._lastSentAt = newMsg.sentAt;
-                    self._renderMessages();
-                    self._scrollToBottom();
-                }
-                return;
-            }
-
-            if (!self._conversationId || !self._lastSentAt) return;
-            try {
-                const res = await MessageAPI.newMessages(self._conversationId, self._lastSentAt);
-                const newMsgs = res.data || [];
-                if (newMsgs.length > 0) {
-                    for (let i = 0; i < newMsgs.length; i++) {
-                        if (newMsgs[i].senderId !== getCurUser().id) {
-                            self._messages.push(newMsgs[i]);
-                        }
-                    }
-                    self._lastSentAt = newMsgs[newMsgs.length - 1].sentAt;
-                    self._renderMessages();
-                    self._scrollToBottom();
-                    // 有新消息自动标记已读
-                    MessageAPI.markRead(self._conversationId).catch(function () {});
-                }
-            } catch (e) {
-                // 轮询失败静默处理
-            }
-        }, 3000);
+        self._loading = false;
+        self._renderMessages(true);
     },
 
     // ========== 发送消息 ==========
 
     _sendMessage: async function () {
-        const input = document.getElementById('chatInput');
-        const content = input.value.trim();
+        var input = document.getElementById('chatInput');
+        var content = input.value.trim();
         if (!content) return;
 
         input.value = '';
-        const curUser = getCurUser();
-        const tempId = 'temp_' + Date.now();
-        const now = new Date().toISOString();
+        var curUser = getCurUser();
+        var tempId = 'temp_' + Date.now();
+        var now = new Date().toISOString();
 
-        // 乐观更新：立即显示
-        const tempMsg = {
+        // 乐观更新
+        var tempMsg = {
             id: tempId,
-            senderId: curUser ? curUser.id : 1,
+            senderId: curUser ? curUser.id : 0,
             content: content,
             status: 'sending',
             sentAt: now
@@ -248,42 +197,24 @@ const ChatRoomPage = {
         this._scrollToBottom();
 
         try {
-            if (USE_MOCK_CHAT) {
-                // mock 模拟成功
-                const idx = this._findMsgIndex(tempId);
-                if (idx >= 0) {
-                    this._messages[idx].id = Date.now();
-                    this._messages[idx].status = 'DELIVERED';
-                }
-                this._lastSentAt = new Date().toISOString();
-                this._renderMessages();
-                this._scrollToBottom();
-                return;
-            }
+            var res = await MessageAPI.send(this._targetUserId, content);
+            var sent = res.data;
 
-            const res = await MessageAPI.send(this._targetUserId, content);
-            const sent = res.data;
-
-            // 更新消息状态
-            const idx = this._findMsgIndex(tempId);
+            var idx = this._findMsgIndex(tempId);
             if (idx >= 0) {
                 this._messages[idx].id = sent.id;
-                this._messages[idx].status = sent.status;
+                this._messages[idx].status = sent.status || 'DELIVERED';
                 this._messages[idx].sentAt = sent.sentAt;
             }
 
-            // 首次发消息时获取 conversationId
             if (!this._conversationId && sent.conversationId) {
                 this._conversationId = sent.conversationId;
             }
-            this._lastSentAt = sent.sentAt;
             this._renderMessages();
             this._scrollToBottom();
         } catch (e) {
-            const idx = this._findMsgIndex(tempId);
-            if (idx >= 0) {
-                this._messages[idx].status = 'failed';
-            }
+            var idx = this._findMsgIndex(tempId);
+            if (idx >= 0) this._messages[idx].status = 'failed';
             this._renderMessages();
             toast('发送失败，请重试', 'error');
         }
@@ -292,16 +223,16 @@ const ChatRoomPage = {
     // ========== 渲染 ==========
 
     _renderMessages: function (keepScroll) {
-        const el = document.getElementById('chatMessages');
+        var el = document.getElementById('chatMessages');
         if (!el) return;
 
-        const curUser = getCurUser();
-        const curId = curUser ? curUser.id : 1;
-        const prevScrollHeight = el.scrollHeight;
-        const prevScrollTop = el.scrollTop;
+        var curUser = getCurUser();
+        var curId = curUser ? curUser.id : 0;
+        var prevScrollHeight = el.scrollHeight;
+        var prevScrollTop = el.scrollTop;
+        var self = this;
 
-        let html = '';
-        // 加载更多提示
+        var html = '';
         if (this._hasMore) {
             html += '<div style="text-align:center;padding:12px;color:var(--text-secondary);font-size:12px;">上拉加载更多</div>';
         } else if (this._messages.length > 0) {
@@ -312,18 +243,18 @@ const ChatRoomPage = {
             html += '<div class="empty-state">开始聊天吧！</div>';
         }
 
-        for (let i = 0; i < this._messages.length; i++) {
-            const m = this._messages[i];
-            const isMe = m.senderId === curId;
-            const time = this._formatMsgTime(m.sentAt);
-            let statusIcon = '';
+        for (var i = 0; i < this._messages.length; i++) {
+            var m = this._messages[i];
+            var isMe = m.senderId === curId;
+            var time = self._formatMsgTime(m.sentAt);
+            var statusIcon = '';
             if (isMe) {
                 if (m.status === 'sending') {
                     statusIcon = '<span style="font-size:10px;color:#aaa;">发送中...</span>';
                 } else if (m.status === 'failed') {
                     statusIcon = '<span style="font-size:10px;color:#e74c3c;">发送失败</span>';
                 } else if (m.status === 'DELIVERED') {
-                    statusIcon = '<span style="font-size:12px;color:#aaa;">✓✓</span>';
+                    statusIcon = '<span style="font-size:12px;color:#aaa;">✓</span>';
                 } else if (m.status === 'READ') {
                     statusIcon = '<span style="font-size:12px;color:#4a90d9;">✓✓</span>';
                 }
@@ -332,7 +263,7 @@ const ChatRoomPage = {
             html += `
             <div class="msg-row ${isMe ? 'msg-me' : 'msg-other'}">
                 <div class="msg-bubble ${isMe ? 'bubble-me' : 'bubble-other'}">
-                    <div class="msg-text">${this._escapeHtml(m.content)}</div>
+                    <div class="msg-text">${self._escapeHtml(m.content)}</div>
                 </div>
                 <div class="msg-meta">
                     <span class="msg-time">${time}</span>
@@ -344,20 +275,20 @@ const ChatRoomPage = {
         el.innerHTML = html;
 
         if (keepScroll) {
-            const newScrollHeight = el.scrollHeight;
+            var newScrollHeight = el.scrollHeight;
             el.scrollTop = newScrollHeight - prevScrollHeight + prevScrollTop;
         }
     },
 
     _scrollToBottom: function () {
-        const el = document.getElementById('chatMessages');
+        var el = document.getElementById('chatMessages');
         if (el) {
             setTimeout(function () { el.scrollTop = el.scrollHeight; }, 50);
         }
     },
 
     _findMsgIndex: function (id) {
-        for (let i = this._messages.length - 1; i >= 0; i--) {
+        for (var i = this._messages.length - 1; i >= 0; i--) {
             if (this._messages[i].id === id) return i;
         }
         return -1;
@@ -365,40 +296,20 @@ const ChatRoomPage = {
 
     _formatMsgTime: function (dtStr) {
         if (!dtStr) return '';
-        const d = new Date(dtStr);
-        return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        var d = new Date(dtStr);
+        var hh = String(d.getHours()).padStart(2, '0');
+        var mm = String(d.getMinutes()).padStart(2, '0');
+        return hh + ':' + mm;
     },
 
     _escapeHtml: function (text) {
-        const div = document.createElement('div');
+        var div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
 };
 
-// ===== Mock 数据 =====
-const MOCK_MESSAGES_USER2 = [
-    { id: 1, senderId: 1, content: '你好，明天的篮球局你参加吗？', status: 'READ', sentAt: '2026-06-29T14:00:00' },
-    { id: 2, senderId: 2, content: '参加参加！几点开始？', status: 'READ', sentAt: '2026-06-29T14:02:00' },
-    { id: 3, senderId: 1, content: '下午2点，朝阳公园', status: 'READ', sentAt: '2026-06-29T14:05:00' },
-    { id: 4, senderId: 2, content: 'OK，我带球过去', status: 'READ', sentAt: '2026-06-29T14:10:00' },
-    { id: 5, senderId: 1, content: '好的，明天见！', status: 'DELIVERED', sentAt: '2026-06-29T14:30:00' }
-];
-
-const MOCK_MESSAGES_USER3 = [
-    { id: 1, senderId: 1, content: '小红你好！', status: 'READ', sentAt: '2026-06-29T11:00:00' },
-    { id: 2, senderId: 3, content: '你好呀~', status: 'READ', sentAt: '2026-06-29T11:05:00' },
-    { id: 3, senderId: 1, content: '周末的徒步活动你会去吗？', status: 'READ', sentAt: '2026-06-29T11:10:00' },
-    { id: 4, senderId: 3, content: '会的！已经报名了', status: 'DELIVERED', sentAt: '2026-06-29T12:00:00' }
-];
-
-const MOCK_REPLIES = [
-    '好的', '收到！', '没问题', '哈哈', '太棒了',
-    '我也觉得', '到时候见', 'OK', '嗯嗯', '可以的'
-];
-
 // ===== 注册路由 =====
-// 使用参数化路由匹配: /chat/:userId
 Router.register('/chat/:userId', {
     title: '聊天',
     requireAuth: true,

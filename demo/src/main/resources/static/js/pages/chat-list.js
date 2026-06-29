@@ -2,8 +2,6 @@
 // 路由: #/chat
 // 负责人: P7
 
-const USE_MOCK_CHATLIST = true;
-
 const ChatListPage = {
     _data: [],
 
@@ -22,20 +20,14 @@ const ChatListPage = {
     destroy: function () {},
 
     loadConversations: async function () {
-        const el = document.getElementById('chatListContent');
+        var el = document.getElementById('chatListContent');
         if (!el) return;
 
         el.innerHTML = '<div class="loading">加载中...</div>';
 
         try {
-            let data;
-            if (USE_MOCK_CHATLIST) {
-                data = MOCK_CONVERSATIONS;
-            } else {
-                const res = await MessageAPI.conversations();
-                data = res.data;
-            }
-            this._data = data || [];
+            var res = await MessageAPI.conversations();
+            this._data = res.data || [];
             this._renderList(el);
         } catch (e) {
             el.innerHTML = '<div class="empty-state">加载失败，请刷新重试</div>';
@@ -43,23 +35,23 @@ const ChatListPage = {
     },
 
     _renderList: function (el) {
-        const data = this._data;
+        var data = this._data;
         if (!data || data.length === 0) {
-            el.innerHTML = '<div class="empty-state">暂无聊天消息</div>';
+            el.innerHTML = '<div class="empty-state">暂无聊天消息<br><small>去好友页面选一个好友开始聊天吧</small></div>';
             return;
         }
 
-        let html = '<div class="conversation-list">';
-        for (let i = 0; i < data.length; i++) {
-            const c = data[i];
-            const tu = c.targetUser || {};
-            const lastMsg = c.lastMessage || '';
-            const summary = lastMsg.length > 30 ? lastMsg.substring(0, 30) + '...' : lastMsg;
-            const timeStr = ChatListPage._formatTime(c.updatedAt);
-            const unreadBadge = c.unreadCount > 0
+        var html = '<div class="conversation-list">';
+        for (var i = 0; i < data.length; i++) {
+            var c = data[i];
+            var tu = c.targetUser || {};
+            var lastMsg = c.lastMessage || '';
+            var summary = lastMsg.length > 30 ? lastMsg.substring(0, 30) + '...' : lastMsg;
+            var timeStr = ChatListPage._formatTime(c.updatedAt);
+            var unreadBadge = c.unreadCount > 0
                 ? '<span class="badge">' + (c.unreadCount > 99 ? '99+' : c.unreadCount) + '</span>'
                 : '';
-            const avatarText = tu.nickname ? tu.nickname.charAt(0) : '?';
+            var avatarText = tu.nickname ? tu.nickname.charAt(0) : '?';
 
             html += `
             <div class="conversation-item" data-user-id="${tu.id || ''}" style="cursor:pointer;display:flex;align-items:center;padding:12px;border-bottom:1px solid var(--border);gap:12px;">
@@ -80,11 +72,10 @@ const ChatListPage = {
         html += '</div>';
         el.innerHTML = html;
 
-        // 绑定点击事件
-        const items = el.querySelectorAll('.conversation-item');
-        for (let i = 0; i < items.length; i++) {
+        var items = el.querySelectorAll('.conversation-item');
+        for (var i = 0; i < items.length; i++) {
             items[i].addEventListener('click', function () {
-                const uid = this.getAttribute('data-user-id');
+                var uid = this.getAttribute('data-user-id');
                 if (uid) Router.navigate('/chat/' + uid);
             });
         }
@@ -92,14 +83,14 @@ const ChatListPage = {
 
     _formatTime: function (dtStr) {
         if (!dtStr) return '';
-        const d = new Date(dtStr);
-        const now = new Date();
-        const hh = String(d.getHours()).padStart(2, '0');
-        const mm = String(d.getMinutes()).padStart(2, '0');
+        var d = new Date(dtStr);
+        var now = new Date();
+        var hh = String(d.getHours()).padStart(2, '0');
+        var mm = String(d.getMinutes()).padStart(2, '0');
         if (d.toDateString() === now.toDateString()) {
             return hh + ':' + mm;
         }
-        const yesterday = new Date(now);
+        var yesterday = new Date(now);
         yesterday.setDate(yesterday.getDate() - 1);
         if (d.toDateString() === yesterday.toDateString()) {
             return '昨天';
@@ -107,31 +98,6 @@ const ChatListPage = {
         return String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     }
 };
-
-// ===== Mock 数据 =====
-const MOCK_CONVERSATIONS = [
-    {
-        conversationId: 1,
-        targetUser: { id: 2, nickname: '小明', avatar: '' },
-        lastMessage: '明天篮球局别忘了带球！',
-        unreadCount: 2,
-        updatedAt: new Date(Date.now() - 30 * 60000).toISOString()
-    },
-    {
-        conversationId: 2,
-        targetUser: { id: 3, nickname: '小红', avatar: '' },
-        lastMessage: '好的，到时候见~',
-        unreadCount: 0,
-        updatedAt: new Date(Date.now() - 120 * 60000).toISOString()
-    },
-    {
-        conversationId: 3,
-        targetUser: { id: 4, nickname: '户外运动俱乐部', avatar: '' },
-        lastMessage: '这周末的徒步活动你要参加吗？路线已经规划好了，全程约8公里',
-        unreadCount: 5,
-        updatedAt: new Date(Date.now() - 60 * 60000).toISOString()
-    }
-];
 
 Router.register('/chat', {
     title: '消息',

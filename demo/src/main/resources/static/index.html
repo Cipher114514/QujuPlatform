@@ -5,9 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>趣聚 - 线下活动社交平台</title>
     <link rel="stylesheet" href="/css/style.css">
+    <!-- SockJS + STOMP.js（WebSocket 通信基础库） -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
     <!-- 基础库（顺序不能乱） -->
     <script src="/js/api.js"></script>
     <script src="/js/router.js"></script>
+    <script src="/js/ws-client.js"></script>
     <!-- 组件 -->
     <script src="/js/components/navbar.js"></script>
     <!-- 页面模块（新人在这里追加自己的脚本） -->
