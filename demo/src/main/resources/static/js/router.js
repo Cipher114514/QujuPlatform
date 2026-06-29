@@ -7,18 +7,19 @@ const Router = {
     patternRoutes: [],   // [{ pattern: '/activity/:id', regex: /^\/activity\/([^/]+)$/, paramNames: ['id'], config }]
     currentPath: null,
     currentConfig: null,
+    currentParams: null,
 
     /**
      * 注册一个页面
-     * @param {string} path   hash路径，如 '/login', '/register', '/home'
+     * @param {string} path   hash路径，如 '/login', '/register', '/home', '/chat/:userId'
      *   支持路径参数：'/activity/:id' 会匹配 '/activity/123'
      * @param {object} config {
      *   title: '页面标题',
      *   requireAuth: true|false,     // 是否需要登录
      *   authOnly: true|false,        // 已登录用户不可访问（如登录页）
-     *   render: () => htmlString,    // 返回HTML字符串
-     *   init: () => void,            // 页面挂载后初始化（绑定事件等）
-     *   destroy: () => void          // 页面离开时清理
+     *   render: (params) => htmlString,    // 返回HTML字符串
+     *   init: (params) => void,            // 页面挂载后初始化（绑定事件等）
+     *   destroy: () => void                // 页面离开时清理
      * }
      */
     register(path, config) {
@@ -57,6 +58,7 @@ const Router = {
     _load() {
         const hash = window.location.hash.slice(1) || '/login';
         var config = this.routes[hash];
+        var params = {};
 
         // 精确匹配失败，尝试模式匹配
         if (!config) {
@@ -65,10 +67,8 @@ const Router = {
                 var match = hash.match(pr.regex);
                 if (match) {
                     config = pr.config;
-                    // 将路径参数挂到 config 上
-                    config._params = {};
                     for (var j = 0; j < pr.paramNames.length; j++) {
-                        config._params[pr.paramNames[j]] = match[j + 1];
+                        params[pr.paramNames[j]] = match[j + 1];
                     }
                     break;
                 }
@@ -105,9 +105,10 @@ const Router = {
         // 渲染新页面
         this.currentPath = hash;
         this.currentConfig = config;
+        this.currentParams = params;
         document.title = (config.title || '趣聚') + ' - 趣聚';
-        document.getElementById('app').innerHTML = config.render();
-        if (config.init) config.init();
+        document.getElementById('app').innerHTML = config.render(params);
+        if (config.init) config.init(params);
 
         // 滚动到顶部
         window.scrollTo(0, 0);

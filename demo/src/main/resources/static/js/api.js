@@ -70,4 +70,28 @@ var ActivityAPI = {
     create: function(body) { return api('/activities', { method: 'POST', body: body }); }
 };
 // var FriendAPI   = { ... };
-// var MessageAPI  = { ... };
+
+// ===== 即时通讯模块 (P7) =====
+var MessageAPI = {
+    conversations: function () {
+        return api('/messages/conversations');
+    },
+    messages: function (conversationId, page, size) {
+        var params = '?page=' + (page || 1) + '&size=' + (size || 20);
+        return api('/messages/conversations/' + conversationId + params);
+    },
+    send: function (targetUserId, content) {
+        return api('/messages', {
+            method: 'POST',
+            body: { targetUserId: targetUserId, content: content }
+        });
+    },
+    markRead: function (conversationId) {
+        return api('/messages/conversations/' + conversationId + '/read', {
+            method: 'PUT'
+        });
+    },
+    newMessages: function (conversationId, since) {
+        return api('/messages/conversations/' + conversationId + '/new?since=' + encodeURIComponent(since));
+    }
+};
