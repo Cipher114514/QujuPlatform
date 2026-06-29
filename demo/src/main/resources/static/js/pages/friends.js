@@ -167,16 +167,20 @@ Router.register('/friends', {
                     </div>
                 </div>
                 <div style="display:flex;gap:6px;flex-shrink:0;">
-                    <!-- TODO: US-025 备注功能，预留按钮 -->
-                    <!-- <button class="btn btn-outline btn-sm note-btn" data-id="${friend.id}" style="width:auto;padding:4px 10px;font-size:12px;">✏️ 备注</button> -->
-                    <!-- TODO: US-025 分组功能，预留按钮 -->
-                    <!-- <button class="btn btn-outline btn-sm group-btn" data-id="${friend.id}" style="width:auto;padding:4px 10px;font-size:12px;">📁 分组</button> -->
+                    <button class="btn btn-primary btn-sm chat-friend-btn" data-id="${friend.id}" style="width:auto;padding:4px 12px;font-size:12px;">💬 聊天</button>
                     <button class="btn btn-danger btn-sm delete-friend-btn" data-id="${friend.id}" data-name="${escapeHtml(friend.nickname)}" style="width:auto;padding:4px 12px;font-size:12px;">✕ 删除</button>
                 </div>
             </div>`;
         }).join('');
 
         container.innerHTML = html;
+
+        // 绑定聊天按钮事件
+        container.querySelectorAll('.chat-friend-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                Router.navigate('/chat/' + this.dataset.id);
+            });
+        });
 
         // 绑定删除好友事件（US-025）
         container.querySelectorAll('.delete-friend-btn').forEach(function(btn) {
@@ -186,16 +190,6 @@ Router.register('/friends', {
                 self.deleteFriend(id, name);
             });
         });
-
-        // TODO: US-025 备注功能，绑定事件
-        // container.querySelectorAll('.note-btn').forEach(function(btn) {
-        //     btn.addEventListener('click', function() { ... });
-        // });
-
-        // TODO: US-025 分组功能，绑定事件
-        // container.querySelectorAll('.group-btn').forEach(function(btn) {
-        //     btn.addEventListener('click', function() { ... });
-        // });
     },
 
     // ========== 搜索好友过滤（US-025） ==========
