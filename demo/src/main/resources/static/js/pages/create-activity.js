@@ -148,8 +148,7 @@ function loadDraft() {
 }
 
 function saveDraft(data) {
-    // 服务端持久化草稿
-    api('/activities/draft', { method: 'POST', body: {
+    var body = {
         title: data.title || '未命名活动',
         description: data.description || '',
         category: data.category || 'sports',
@@ -161,15 +160,63 @@ function saveDraft(data) {
         fee: data.fee || 0,
         tags: data.tags ? data.tags.split(',').map(function(t){ return t.trim(); }).filter(function(t){ return t; }) : [],
         coverImage: data.coverImage || ''
-    }}).then(function() {
-        toast('草稿已保存');
-        // 同时保留localStorage作为本地备份
+    };
+
+    var editId = window._editingActivityId;
+    var promise;
+    if (editId) {
+        // 编辑已有活动/草稿：PUT 更新，仅当当前是草稿时才保持 DRAFT
+        if (window._editingIsDraft) {
+            body.status = 'DRAFT';
+        }
+        promise = api('/activities/' + editId, { method: 'PUT', body: body });
+    } else {
+        // 新建草稿：POST
+        promise = api('/activities/draft', { method: 'POST', body: body });
+    }
+
+    promise.then(function(res) {
+        if (!editId && res.data && res.data.id) {
+            // 首次保存草稿，记住ID以便后续更新
+            window._editingActivityId = res.data.id;
+            window._editingIsDraft = true;
+            updateEditModeUI();
+        }
+        toast(window._editingIsDraft ? '草稿已保存' : '修改已保存');
         localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
     }).catch(function(err) {
-        toast('草稿保存失败: ' + (err.message || '网络错误'), 'error');
-        // 降级到localStorage
+        toast('保存失败: ' + (err.message || '网络错误'), 'error');
         localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
     });
+}
+
+// 统一更新编辑模式的标题和按钮
+function updateEditModeUI() {
+    var header = document.querySelector('.header h1');
+    var draftBtn = document.getElementById('btnDraft');
+    var publishBtn = document.getElementById('btnPublish');
+
+    if (window._editingActivityId) {
+        if (header) header.textContent = '编辑活动';
+        if (window._editingIsDraft) {
+            // 草稿模式：保存草稿 + 发布活动
+            if (draftBtn) {
+                draftBtn.style.display = '';
+                draftBtn.textContent = '保存草稿';
+            }
+            if (publishBtn) {
+                publishBtn.textContent = '发布活动';
+            }
+        } else {
+            // 已发布模式：只保留保存修改，隐藏草稿按钮
+            if (draftBtn) {
+                draftBtn.style.display = 'none';
+            }
+            if (publishBtn) {
+                publishBtn.textContent = '保存修改';
+            }
+        }
+    }
 }
 
 function clearDraft() {
@@ -268,7 +315,7 @@ async function submitActivity(data) {
     var btn = document.getElementById('btnPublish');
     var alertEl = document.getElementById('createAlert');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> 发布中...';
+    btn.innerHTML = window._editingIsDraft ? '<span class="spinner"></span> 发布中...' : '<span class="spinner"></span> 保存中...';
 
     try {
         if (CREATE_USE_MOCK) {
@@ -297,20 +344,26 @@ async function submitActivity(data) {
 
         var editId = window._editingActivityId;
         if (editId) {
+            body.status = 'ACTIVE';
             var res = await api('/activities/' + editId, { method: 'PUT', body: body });
-            toast(res.message || '修改成功');
-            window._editingActivityId = null;
+            toast(res.message || '保存成功');
+            window._editingIsDraft = false;
+            updateEditModeUI();
         } else {
             var res = await api('/activities', { method: 'POST', body: body });
             toast(res.message || '创建成功');
+            window._editingActivityId = res.data ? res.data.id : null;
+            window._editingIsDraft = false;
+            updateEditModeUI();
         }
         clearDraft();
-        Router.navigate('/activities');
+        // 保存后留在当前页，方便继续修改
     } catch (err) {
         alertEl.textContent = err.message || '创建失败，请稍后重试';
         alertEl.className = 'alert alert-error show';
+    } finally {
         btn.disabled = false;
-        btn.textContent = '发布活动';
+        updateEditModeUI();
     }
 }
 
@@ -327,6 +380,20 @@ var CLONE_CAT_MAP = {
     'charity': '公益活动',
     'citywalk': '城市探索'
 };
+
+// 反向映射 + 正向映射：无论存储的是英文还是中文，都能正确回填
+var CAT_REVERSE_MAP = {};
+for (var k in CLONE_CAT_MAP) {
+    if (CLONE_CAT_MAP.hasOwnProperty(k)) {
+        CAT_REVERSE_MAP[CLONE_CAT_MAP[k]] = k;
+    }
+}
+
+function mapCategoryToSelect(cat) {
+    if (!cat) return '';
+    // 先查正向映射（英文→中文），再查反向（中文→中文），最后原样返回
+    return CLONE_CAT_MAP[cat] || (CAT_REVERSE_MAP[cat] ? cat : cat);
+}
 
 async function loadCloneDataToForm(cloneId) {
     toast('正在加载克隆数据...');
@@ -350,7 +417,7 @@ async function loadCloneDataToForm(cloneId) {
         }
 
         setFieldVal('actTitle', (d.title || '') + '（克隆）');
-        setFieldVal('actCategory', CLONE_CAT_MAP[d.category] || '');
+        setFieldVal('actCategory', mapCategoryToSelect(d.category));
         setFieldVal('actDesc', d.description || '');
         setFieldVal('actLocation', d.location || '');
         setFieldVal('actMaxParticipants', d.maxParticipants || 20);
@@ -407,7 +474,7 @@ async function loadEditDataToForm(editId) {
         }
 
         setFieldVal('actTitle', d.title || '');
-        setFieldVal('actCategory', CLONE_CAT_MAP[d.category] || '');
+        setFieldVal('actCategory', mapCategoryToSelect(d.category));
         setFieldVal('actDesc', d.description || '');
         setFieldVal('actLocation', d.location || '');
         setFieldVal('actMaxParticipants', d.maxParticipants || 20);
@@ -420,14 +487,10 @@ async function loadEditDataToForm(editId) {
 
         // 保存编辑ID到状态
         window._editingActivityId = editId;
+        window._editingIsDraft = (d.status === 'DRAFT');
 
         // 更新标题和按钮
-        var header = document.querySelector('.header h1');
-        if (header) header.textContent = '编辑活动';
-        var btn = document.getElementById('btnPublish');
-        if (btn) btn.textContent = '保存修改';
-        var draftBtn = document.getElementById('btnDraft');
-        if (draftBtn) draftBtn.style.display = 'none';
+        updateEditModeUI();
 
         // 更新字数统计
         var titleEl = document.getElementById('actTitle');

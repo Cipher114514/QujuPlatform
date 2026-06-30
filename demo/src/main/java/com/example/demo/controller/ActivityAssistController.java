@@ -45,11 +45,12 @@ public class ActivityAssistController {
     }
 
     /**
-     * US-009 我创建的活动列表
+     * US-009 我创建的活动列表（不含草稿）
      */
     @GetMapping("/activities/my")
     public Result<List<Activity>> getMyActivities(@AuthenticationPrincipal User currentUser) {
-        List<Activity> activities = activityRepository.findByCreatorIdOrderByCreatedAtDesc(currentUser.getId());
+        List<Activity> activities = activityRepository
+                .findByCreatorIdAndStatusNotOrderByCreatedAtDesc(currentUser.getId(), "DRAFT");
         return Result.ok(activities);
     }
 
@@ -61,5 +62,22 @@ public class ActivityAssistController {
                                           @AuthenticationPrincipal User currentUser) {
         Activity cloned = cloneService.clone(id, currentUser.getId());
         return Result.ok("克隆成功", cloned);
+    }
+
+    /**
+     * US-008 删除活动/草稿
+     */
+    @DeleteMapping("/activities/{id}")
+    public Result<Void> deleteActivity(@PathVariable Long id,
+                                        @AuthenticationPrincipal User currentUser) {
+        Activity activity = activityRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("活动不存在"));
+
+        if (!activity.getCreatorId().equals(currentUser.getId())) {
+            throw new RuntimeException("只能删除自己创建的活动");
+        }
+
+        activityRepository.delete(activity);
+        return Result.ok("删除成功", null);
     }
 }

@@ -30,10 +30,10 @@ public class ActivityController {
         return Result.ok("创建成功", activityService.createActivity(req, currentUser));
     }
 
-    /** US-009: 修改已发布的活动 */
+    /** US-009: 修改活动（支持草稿和已发布活动） */
     @PutMapping("/{id}")
     public Result<Activity> update(@PathVariable Long id,
-                                   @Valid @RequestBody CreateActivityRequest req,
+                                   @RequestBody CreateActivityRequest req,
                                    @AuthenticationPrincipal User currentUser) {
         return Result.ok("修改成功", activityService.updateActivity(id, req, currentUser));
     }

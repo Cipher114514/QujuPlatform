@@ -71,7 +71,7 @@ public class ActivityService {
     }
 
     /**
-     * US-009: 修改已发布的活动（仅限创建者本人，且活动尚未开始）
+     * US-009: 修改活动（支持 ACTIVE 和 DRAFT 状态，草稿跳过时间校验）
      */
     public Activity updateActivity(Long activityId, CreateActivityRequest req, User editor) {
         Activity activity = activityRepository.findById(activityId)
@@ -81,40 +81,56 @@ public class ActivityService {
             throw new BusinessException("只能修改自己创建的活动");
         }
 
-        if (!"ACTIVE".equals(activity.getStatus())) {
-            throw new BusinessException("只有进行中的活动可以修改");
+        String currentStatus = activity.getStatus();
+        if (!"ACTIVE".equals(currentStatus) && !"DRAFT".equals(currentStatus)) {
+            throw new BusinessException("该活动当前状态不可修改");
         }
 
-        if (activity.getStartTime() != null && activity.getStartTime().isBefore(LocalDateTime.now())) {
-            throw new BusinessException("活动已开始，无法修改");
-        }
+        boolean isDraft = "DRAFT".equals(currentStatus);
+        boolean isPublishing = "ACTIVE".equals(req.getStatus());
 
-        if (!req.getStartTime().isAfter(LocalDateTime.now())) {
-            throw new BusinessException("活动开始时间必须晚于当前系统时间");
-        }
-        if (!req.getEndTime().isAfter(req.getStartTime())) {
-            throw new BusinessException("活动结束时间必须晚于开始时间");
-        }
-        if (req.getRegistrationDeadline() != null && !req.getRegistrationDeadline().isBefore(req.getStartTime())) {
-            throw new BusinessException("报名截止时间必须早于活动开始时间");
+        // 时间校验：仅当发布时（status=ACTIVE）强制校验，纯草稿保存可跳过
+        if (isPublishing || !isDraft) {
+            if (!isDraft && activity.getStartTime() != null && activity.getStartTime().isBefore(LocalDateTime.now())) {
+                throw new BusinessException("活动已开始，无法修改");
+            }
+            if (req.getStartTime() != null && !req.getStartTime().isAfter(LocalDateTime.now())) {
+                throw new BusinessException("活动开始时间必须晚于当前系统时间");
+            }
+            if (req.getEndTime() != null && req.getStartTime() != null && !req.getEndTime().isAfter(req.getStartTime())) {
+                throw new BusinessException("活动结束时间必须晚于开始时间");
+            }
+            if (req.getRegistrationDeadline() != null && req.getStartTime() != null
+                    && !req.getRegistrationDeadline().isBefore(req.getStartTime())) {
+                throw new BusinessException("报名截止时间必须早于活动开始时间");
+            }
         }
 
         String tagsStr = null;
         if (req.getTags() != null && !req.getTags().isEmpty()) {
             tagsStr = String.join(",", req.getTags());
+        } else if (req.getTags() != null) {
+            tagsStr = null;  // 空列表表示清空标签
         }
 
         activity.setTitle(req.getTitle());
         activity.setDescription(req.getDescription());
         activity.setCategory(req.getCategory());
-        activity.setStartTime(req.getStartTime());
-        activity.setEndTime(req.getEndTime());
+        if (req.getStartTime() != null) activity.setStartTime(req.getStartTime());
+        if (req.getEndTime() != null) activity.setEndTime(req.getEndTime());
         activity.setLocation(req.getLocation());
         activity.setMaxParticipants(req.getMaxParticipants());
         activity.setFee(req.getFee() != null ? req.getFee() : BigDecimal.ZERO);
-        activity.setTags(tagsStr);
+        if (tagsStr != null || req.getTags() != null) activity.setTags(tagsStr);
         activity.setCoverImage(req.getCoverImage());
-        activity.setRegistrationDeadline(req.getRegistrationDeadline());
+        if (req.getRegistrationDeadline() != null) activity.setRegistrationDeadline(req.getRegistrationDeadline());
+
+        // 状态切换：前端可传 status 来发布草稿或存草稿
+        if (req.getStatus() != null) {
+            if ("ACTIVE".equals(req.getStatus()) || "DRAFT".equals(req.getStatus())) {
+                activity.setStatus(req.getStatus());
+            }
+        }
 
         return activityRepository.save(activity);
     }

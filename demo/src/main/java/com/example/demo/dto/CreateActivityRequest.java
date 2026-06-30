@@ -40,4 +40,5 @@ public class CreateActivityRequest {
     private List<String> tags;
     private String coverImage;
     private List<String> images;
+    private String status;  // DRAFT / ACTIVE，用于草稿和发布状态切换
 }
