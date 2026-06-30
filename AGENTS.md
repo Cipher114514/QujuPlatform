@@ -31,7 +31,7 @@ mysql -u root -p < init.sql
 
 ### 数据库切换
 
-在 `application.properties` 中，MySQL 8.0 是默认配置。如需单人开发（无 MySQL），注释掉 MySQL 部分并取消 H2 部分的注释即可切换到内存数据库。
+在 `build.gradle` 与 `application.properties` 中，MySQL 8.0 是默认配置。如需单人开发（无 MySQL），注释掉 MySQL 部分并取消 H2 部分的注释即可切换到内存数据库。
 
 ---
 
