@@ -201,6 +201,7 @@ Router.register('/admin', {
                     '<div style="font-size:11px;margin-top:2px;">' +
                         '<span class="role-badge ' + u.role.toLowerCase() + '" style="padding:1px 6px;border-radius:4px;font-size:11px;">' + roleText + '</span> ' +
                         '<span style="color:var(--text-secondary);">' + statusText + '</span>' +
+                        (u.role === 'BUSINESS' && u.creditCode ? ' <span style="color:var(--text-secondary);font-size:11px;">信用代码: ' + escapeHtml(u.creditCode) + '</span>' : '') +
                         (u.banReason ? ' <span style="color:var(--danger);font-size:11px;">原因: ' + escapeHtml(u.banReason) + '</span>' : '') +
                         (u.banUntil ? ' <span style="color:var(--danger);font-size:11px;">至 ' + new Date(u.banUntil).toLocaleString('zh-CN') + '</span>' : '') +
                     '</div>' +
@@ -321,6 +322,7 @@ Router.register('/admin', {
                         '<div><b>' + escapeHtml(b.nickname) + '</b> <span style="font-size:11px;color:var(--text-secondary);">#' + b.id + '</span></div>' +
                         '<div style="font-size:12px;color:var(--text-secondary);">' + escapeHtml(b.email) + (b.phone ? ' | ' + b.phone : '') + '</div>' +
                         '<div style="font-size:11px;color:var(--text-secondary);">' +
+                            (b.creditCode ? '信用代码: ' + escapeHtml(b.creditCode) + ' | ' : '') +
                             (b.address ? '地址: ' + escapeHtml(b.address) : '') +
                             (b.businessFields ? ' | 领域: ' + escapeHtml(b.businessFields) : '') +
                         '</div>' +

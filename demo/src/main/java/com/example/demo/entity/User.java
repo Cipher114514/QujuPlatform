@@ -57,6 +57,10 @@ public class User {
     @Column(length = 500)
     private String businessLicense;
 
+    /** 统一社会信用代码（18位） */
+    @Column(unique = true)
+    private String creditCode;
+
     /** 商家地址 */
     private String address;
 

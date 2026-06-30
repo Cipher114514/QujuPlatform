@@ -22,6 +22,7 @@ public class UserProfileResponse {
     private String role;
     private String status;
     private String businessLicense;
+    private String creditCode;
     private String address;
     private String businessFields;
     private String createdAt;

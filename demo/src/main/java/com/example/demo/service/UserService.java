@@ -31,6 +31,7 @@ public class UserService {
         if (req.getGender() != null) currentUser.setGender(req.getGender());
         if (req.getBirthday() != null) currentUser.setBirthday(req.getBirthday());
         if (req.getTags() != null) currentUser.setTags(req.getTags());
+        if (req.getCreditCode() != null) currentUser.setCreditCode(req.getCreditCode());
         if (req.getAddress() != null) currentUser.setAddress(req.getAddress());
         if (req.getBusinessLicense() != null) currentUser.setBusinessLicense(req.getBusinessLicense());
         if (req.getBusinessFields() != null) currentUser.setBusinessFields(req.getBusinessFields());
@@ -44,7 +45,7 @@ public class UserService {
                 .phone(u.getPhone()).avatar(u.getAvatar()).bio(u.getBio())
                 .gender(u.getGender()).birthday(u.getBirthday()).tags(u.getTags())
                 .role(u.getRole().name().toLowerCase()).status(u.getStatus().name().toLowerCase())
-                .businessLicense(u.getBusinessLicense()).address(u.getAddress())
+                .businessLicense(u.getBusinessLicense()).creditCode(u.getCreditCode()).address(u.getAddress())
                 .businessFields(u.getBusinessFields())
                 .createdAt(u.getCreatedAt() != null ? u.getCreatedAt().toString() : null)
                 .build();

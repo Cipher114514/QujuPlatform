@@ -59,6 +59,7 @@ Router.register('/profile', {
             ' + (u.role !== 'business' ? '\
             <div class="field"><span class="key">兴趣标签</span><span class="val">' + escapeHtml(u.tags || '未设置') + '</span></div>' : '') + '\
             ' + (u.role === 'business' ? '\
+            <div class="field"><span class="key">统一社会信用代码</span><span class="val">' + escapeHtml(u.creditCode || '未设置') + '</span></div>\
             <div class="field"><span class="key">商家地址</span><span class="val">' + escapeHtml(u.address || '未设置') + '</span></div>\
             <div class="field"><span class="key">关注领域</span><span class="val">' + escapeHtml(u.businessFields || '未设置') + '</span></div>' : '') + '\
             <div class="field"><span class="key">角色</span><span class="val"><span class="role-badge ' + u.role + '">' + (roleMap[u.role] || u.role) + '</span></span></div>\
@@ -132,6 +133,10 @@ Router.register('/profile', {
             </div>' : '') + '\
             ' + (u.role === 'business' ? '\
             <div class="form-group">\
+                <label>统一社会信用代码</label>\
+                <input class="form-input" name="creditCode" maxlength="18" value="' + escapeHtml(u.creditCode || '') + '">\
+            </div>\
+            <div class="form-group">\
                 <label>商家地址</label>\
                 <input class="form-input" name="address" maxlength="200" value="' + escapeHtml(u.address || '') + '">\
             </div>\
@@ -193,7 +198,7 @@ Router.register('/profile', {
         document.querySelectorAll('#profileForm [name]').forEach(function(el) {
             if (el.type === 'file') return;
             var v = el.value.trim();
-            if (v !== '' || el.name === 'bio' || el.name === 'address' || el.name === 'businessFields' || el.name === 'tags') {
+            if (v !== '' || el.name === 'bio' || el.name === 'address' || el.name === 'businessFields' || el.name === 'tags' || el.name === 'creditCode') {
                 data[el.name] = v;
             }
         });

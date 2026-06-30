@@ -23,6 +23,7 @@ Router.register('/register', {
                     <div class="form-group"><label>密码 *</label><input type="password" id="regPwd" placeholder="至少8位，包含字母和数字" required minlength="8"><p class="hint">至少8位，必须包含字母和数字</p></div>
                     <div class="form-group"><label>手机号</label><input type="tel" id="regPhone" placeholder="选填"></div>
                     <div id="bizFields" style="display:none;">
+                        <div class="form-group"><label>统一社会信用代码 *</label><input type="text" id="regCreditCode" placeholder="18位统一社会信用代码" maxlength="18"></div>
                         <div class="form-group"><label>商家地址 *</label><input type="text" id="regAddr" placeholder="请输入商家地址"></div>
                         <div class="form-group">
                             <label>营业执照 *</label>
@@ -61,9 +62,14 @@ Router.register('/register', {
             var pwd = document.getElementById('regPwd').value;
 
             alertEl.classList.remove('show');
+            var email = document.getElementById('regEmail').value;
+            if (!isEmail(email)) { alertEl.textContent='请输入正确的邮箱地址'; alertEl.className='alert alert-error show'; return; }
             if (pwd.length < 8) { alertEl.textContent='密码至少8位'; alertEl.className='alert alert-error show'; return; }
             if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(pwd)) { alertEl.textContent='密码必须包含字母和数字'; alertEl.className='alert alert-error show'; return; }
             if (role === 'business') {
+                var creditCode = document.getElementById('regCreditCode').value.trim();
+                if (!creditCode) { alertEl.textContent='请输入统一社会信用代码'; alertEl.className='alert alert-error show'; return; }
+                if (creditCode.length !== 18) { alertEl.textContent='统一社会信用代码应为18位'; alertEl.className='alert alert-error show'; return; }
                 if (!document.getElementById('regAddr').value.trim()) { alertEl.textContent='商家地址不能为空'; alertEl.className='alert alert-error show'; return; }
                 if (!window.licFile) { alertEl.textContent='请上传营业执照'; alertEl.className='alert alert-error show'; return; }
             }
@@ -75,6 +81,7 @@ Router.register('/register', {
                     nickname: document.getElementById('regNick').value, role: role,
                     phone: document.getElementById('regPhone').value || undefined };
                 if (role === 'business') {
+                    body.creditCode = creditCode;
                     var upRes = await UploadAPI.upload(window.licFile, 'business_license');
                     body.businessLicense = upRes.data.url;
                     body.address = document.getElementById('regAddr').value;

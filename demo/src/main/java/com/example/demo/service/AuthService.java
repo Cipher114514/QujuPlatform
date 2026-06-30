@@ -28,8 +28,9 @@ public class AuthService {
         if (userRepository.existsByNickname(req.getNickname())) {
             throw new BusinessException("该昵称已被使用");
         }
-        if (req.getBusinessLicense() != null && userRepository.existsByBusinessLicense(req.getBusinessLicense())) {
-            throw new BusinessException("该营业执照已被注册");
+        if (req.getCreditCode() != null && !req.getCreditCode().isBlank()
+                && userRepository.existsByCreditCode(req.getCreditCode())) {
+            throw new BusinessException("该统一社会信用代码已被注册");
         }
 
         UserRole role;
@@ -49,6 +50,7 @@ public class AuthService {
                 .role(role)
                 .status(status)
                 .businessLicense(req.getBusinessLicense())
+                .creditCode(req.getCreditCode())
                 .address(req.getAddress())
                 .build();
 

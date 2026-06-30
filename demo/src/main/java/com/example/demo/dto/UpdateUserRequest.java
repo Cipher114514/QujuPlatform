@@ -12,6 +12,7 @@ public class UpdateUserRequest {
     private String birthday;
     private String tags;
     // 商家字段
+    private String creditCode;
     private String address;
     private String businessLicense;
     private String businessFields;

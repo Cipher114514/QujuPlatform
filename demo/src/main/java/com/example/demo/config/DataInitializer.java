@@ -85,6 +85,7 @@ public class DataInitializer implements CommandLineRunner {
                 .email("zhouba@test.com").password(pwd).nickname("周八的运动馆")
                 .phone("13900000001").bio("专业运动场地租赁，定期组织篮球/羽毛球活动")
                 .address("北京市海淀区中关村大街88号")
+                .creditCode("91110108MA01ABCD12")
                 .businessFields("[\"运动\",\"健身\"]")
                 .businessLicense("uploads/business_license/5419688d_20260629101359.pdf")
                 .role(UserRole.BUSINESS).status(UserStatus.ACTIVE).build());
@@ -99,6 +100,7 @@ public class DataInitializer implements CommandLineRunner {
                 .email("zhengshi@test.com").password(pwd).nickname("郑十的桌游吧")
                 .phone("13900000002").bio("三里屯专业桌游吧，每周组织狼人杀、剧本杀活动")
                 .address("北京市朝阳区三里屯SOHO 5号楼301")
+                .creditCode("91110105MA01EFGH34")
                 .businessFields("[\"桌游\",\"聚会\"]")
                 .role(UserRole.BUSINESS).status(UserStatus.ACTIVE).build());
 

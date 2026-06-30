@@ -20,6 +20,7 @@ public class AdminUserResponse {
     private String role;
     private String status;
     private String businessLicense;
+    private String creditCode;
     private String address;
     private String businessFields;
     private String banReason;
@@ -41,6 +42,7 @@ public class AdminUserResponse {
                 .role(u.getRole().name())
                 .status(u.getStatus().name())
                 .businessLicense(u.getBusinessLicense())
+                .creditCode(u.getCreditCode())
                 .address(u.getAddress())
                 .businessFields(u.getBusinessFields())
                 .banReason(u.getBanReason())

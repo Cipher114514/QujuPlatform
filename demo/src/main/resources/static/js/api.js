@@ -51,7 +51,11 @@ function toast(msg, type) {
     setTimeout(function() { el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 300); }, 2500);
 }
 
-// ---------- 快捷API（业务方可在此区域追加） ----------
+// ---------- 校验工具 ----------
+var EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/;
+function isEmail(str) {
+    return EMAIL_REGEX.test(str);
+}
 var AuthAPI = {
     login:    function(body) { return api('/auth/login',    { method:'POST', body: body }); },
     register: function(body) { return api('/auth/register', { method:'POST', body: body }); }

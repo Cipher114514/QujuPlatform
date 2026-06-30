@@ -15,6 +15,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmail(String email);
     boolean existsByNickname(String nickname);
     boolean existsByBusinessLicense(String businessLicense);
+    boolean existsByCreditCode(String creditCode);
 
     /** 昵称模糊搜索（用于添加好友时查找用户） */
     List<User> findByNicknameContainingIgnoreCase(String keyword);

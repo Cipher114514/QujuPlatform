@@ -11,6 +11,7 @@ public class RegisterRequest {
 
     @NotBlank(message = "邮箱不能为空")
     @Email(message = "邮箱格式不正确")
+    @Pattern(regexp = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.com$", message = "邮箱格式不正确，需以.com结尾")
     private String email;
 
     @NotBlank(message = "密码不能为空")
@@ -28,6 +29,7 @@ public class RegisterRequest {
     private String role;
 
     // 商家专用
+    private String creditCode;
     private String businessLicense;
     private String address;
 }

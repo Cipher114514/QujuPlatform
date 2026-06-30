@@ -39,7 +39,20 @@ const ChatRoomPage = {
             Router.navigate('/chat');
             return;
         }
+
+        // 重置所有状态，防止切换到新用户时残留旧数据
         this._targetUserId = userId;
+        this._conversationId = null;
+        this._targetUser = null;
+        this._messages = [];
+        this._page = 1;
+        this._hasMore = true;
+        this._loading = false;
+        this._lastSentAt = null;
+        if (this._pollTimer) {
+            clearInterval(this._pollTimer);
+            this._pollTimer = null;
+        }
 
         var self = this;
 

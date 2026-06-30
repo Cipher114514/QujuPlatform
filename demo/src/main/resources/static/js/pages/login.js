@@ -73,6 +73,8 @@ Router.register('/login', {
             var alertEl = document.getElementById('loginAlert');
             var btn = document.getElementById('loginBtn');
             alertEl.classList.remove('show');
+            var email = document.getElementById('loginEmail').value;
+            if (!isEmail(email)) { alertEl.textContent='请输入正确的邮箱地址'; alertEl.className='alert alert-error show'; return; }
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner"></span> 登录中...';
 
