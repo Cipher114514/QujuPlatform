@@ -81,10 +81,8 @@ Router.register('/register', {
                 }
                 var res = await AuthAPI.register(body);
                 if (role === 'business') {
-                    alertEl.textContent = '注册成功！请等待管理员审核通过后登录。';
-                    alertEl.className = 'alert alert-success show';
-                    btn.disabled = false; btn.textContent = '注 册';
-                    setTimeout(function(){ Router.navigate('/login'); }, 2000);
+                    toast('注册成功！请等待管理员审核通过。');
+                    setTimeout(function(){ Router.navigate('/login'); }, 1500);
                 } else {
                     setToken(res.data.token);
                     setCurUser(res.data.user);

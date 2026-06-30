@@ -102,6 +102,15 @@ const Router = {
             return;
         }
 
+        // 审核中守卫：PENDING 用户只能访问 /pending 和 /login
+        if (getToken()) {
+            var curUser = getCurUser();
+            if (curUser && curUser.status === 'pending' && hash !== '/pending' && hash !== '/login') {
+                this.navigate('/pending');
+                return;
+            }
+        }
+
         // 销毁旧页面
         if (this.currentConfig && this.currentConfig.destroy) {
             this.currentConfig.destroy();

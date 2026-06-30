@@ -83,8 +83,13 @@ Router.register('/login', {
                 });
                 setToken(res.data.token);
                 setCurUser(res.data.user);
-                toast('登录成功！');
-                Router.navigate('/home');
+                if (res.data.user.status === 'pending') {
+                    toast('您的商家账号正在审核中，请耐心等待');
+                    Router.navigate('/pending');
+                } else {
+                    toast('登录成功！');
+                    Router.navigate('/home');
+                }
             } catch (err) {
                 alertEl.textContent = err.message || '登录失败';
                 alertEl.className = 'alert alert-error show';

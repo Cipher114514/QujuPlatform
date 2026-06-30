@@ -14,17 +14,30 @@ var Navbar = {
         { path: '/chat',       icon: '💬', label: '聊天' },
         { path: '/discover',   icon: '🔍', label: '发现' },
         { path: '/follows',    icon: '⭐', label: '关注' },
-        { path: '/profile',    icon: '👤', label: '资料' }
+        { path: '/profile',    icon: '👤', label: '资料' },
+        { path: '/admin',      icon: '⚙️', label: '管理', adminOnly: true }
     ],
 
     render: function() {
         var user = getCurUser();
         if (!user) return '';  // 未登录不显示导航栏
 
+        if (user.status === 'pending') {
+            var roleMap = { user:'个人用户', business:'商家用户', admin:'管理员' };
+            return '<nav class="navbar" id="mainNav">' +
+                '<span class="brand" onclick="Router.navigate(\'/pending\')" style="cursor:pointer;">🎯 趣聚</span>' +
+                '<div class="nav-links"></div>' +
+                '<div class="user-info">' +
+                    '<span style="font-size:13px;color:#f59e0b;margin-right:8px;">⏳ 审核中 | ' + user.nickname + '</span>' +
+                    '<button class="btn btn-outline btn-sm" onclick="clearToken();Router.navigate(\'/login\');">退出</button>' +
+                '</div></nav>';
+        }
+
         var currentPath = window.location.hash.slice(1) || '/home';
         var navHtml = '';
         for (var i = 0; i < this.menus.length; i++) {
             var m = this.menus[i];
+            if (m.adminOnly && user.role !== 'admin') continue;
             var active = (currentPath === m.path || (m.path !== '/home' && currentPath.indexOf(m.path) === 0));
             navHtml += '<a href="#'+m.path+'" class="nav-item'+(active?' active':'')+'">'+
                 '<span class="nav-icon">'+m.icon+'</span>'+
