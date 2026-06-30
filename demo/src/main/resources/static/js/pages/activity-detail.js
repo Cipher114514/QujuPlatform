@@ -367,9 +367,9 @@ function renderCommentItem(c) {
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">\
             <span style="font-weight:600;font-size:13px;">' + nickname + '</span>\
             <span style="font-size:11px;color:var(--text-secondary);">' + time + '</span>\
-            ' + (isReported ? '<span style="font-size:11px;color:var(--danger);">[已举报]</span>' : '') + '\
+            ' + (isReported ? '<span style="font-size:11px;color:var(--warning);">[该留言正在审核中]</span>' : '') + '\
         </div>\
-        <p style="font-size:14px;margin:4px 0;' + (isReported ? 'color:var(--text-secondary);font-style:italic;' : '') + '">' + content + '</p>\
+        <p style="font-size:14px;margin:4px 0;' + (isReported ? 'color:var(--text-secondary);font-style:italic;' : '') + 'word-wrap:break-word;word-break:break-word;overflow-wrap:break-word;">' + content + '</p>\
         <div style="display:flex;gap:8px;">\
             <button class="btn-reply btn btn-outline btn-sm" data-id="' + c.id + '" style="font-size:11px;width:auto;padding:2px 10px;">回复</button>\
             ' + (!isReported ? '<button class="btn-report btn btn-outline btn-sm" data-id="' + c.id + '" style="font-size:11px;width:auto;padding:2px 10px;color:var(--danger);">举报</button>' : '') + '\
@@ -393,8 +393,8 @@ function renderCommentItem(c) {
             <div style="padding:6px 0;' + (r > 0 ? 'border-top:1px solid var(--border);' : '') + '">\
                 <span style="font-weight:600;font-size:12px;">' + rnick + '</span>\
                 <span style="font-size:10px;color:var(--text-secondary);margin-left:6px;">' + rtime + '</span>\
-                ' + (risReported ? '<span style="font-size:10px;color:var(--danger);margin-left:6px;">[已举报]</span>' : '') + '\
-                <p style="font-size:13px;margin:2px 0;">' + escapeHtml(reply.content || '') + '</p>\
+                ' + (risReported ? '<span style="font-size:10px;color:var(--warning);margin-left:6px;">[审核中]</span>' : '') + '\
+                <p style="font-size:13px;margin:2px 0;word-wrap:break-word;word-break:break-word;overflow-wrap:break-word;">' + escapeHtml(reply.content || '') + '</p>\
             </div>';
         }
         html += '</div>';

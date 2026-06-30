@@ -32,4 +32,5 @@ public class RegisterRequest {
     private String creditCode;
     private String businessLicense;
     private String address;
+    private String businessFields;  // 服务领域描述
 }

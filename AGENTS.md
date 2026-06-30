@@ -31,7 +31,35 @@ mysql -u root -p < init.sql
 
 ### 数据库切换
 
-在 `build.gradle` 与 `application.properties` 中，MySQL 8.0 是默认配置。如需单人开发（无 MySQL），注释掉 MySQL 部分并取消 H2 部分的注释即可切换到内存数据库。
+#### 切换到 H2（单人开发，无需安装 MySQL）
+
+1. **修改 `demo/build.gradle`**：注释 MySQL，启用 H2
+   ```gradle
+   // MySQL (团队协作)
+   // runtimeOnly 'com.mysql:mysql-connector-j'
+
+   // H2 for dev (单人快速启动,无需安装MySQL)
+   runtimeOnly 'com.h2database:h2'
+   ```
+
+2. **修改 `demo/src/main/resources/application.properties`**：
+   - 注释掉 MySQL 配置（`spring.datasource.*`、`spring.jpa.properties.hibernate.dialect`）
+   - 取消注释 H2 配置（`spring.datasource.url=jdbc:h2:mem:quju`）
+
+#### 切换到 MySQL（团队协作）
+
+1. **修改 `demo/build.gradle`**：注释 H2，启用 MySQL
+   ```gradle
+   // H2 for dev (单人快速启动,无需安装MySQL)
+   // runtimeOnly 'com.h2database:h2'
+
+   // MySQL (团队协作)
+   runtimeOnly 'com.mysql:mysql-connector-j'
+   ```
+
+2. **修改 `demo/src/main/resources/application.properties`**：注释 H2，启用 MySQL 配置
+
+3. **初始化数据库**：执行 `mysql -u root -p < init.sql`
 
 ---
 

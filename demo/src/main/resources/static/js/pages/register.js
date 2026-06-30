@@ -25,6 +25,7 @@ Router.register('/register', {
                     <div id="bizFields" style="display:none;">
                         <div class="form-group"><label>统一社会信用代码 *</label><input type="text" id="regCreditCode" placeholder="18位统一社会信用代码" maxlength="18"></div>
                         <div class="form-group"><label>商家地址 *</label><input type="text" id="regAddr" placeholder="请输入商家地址"></div>
+                        <div class="form-group"><label>服务领域描述</label><textarea id="regBizFields" placeholder="请描述您提供的主要服务领域和特色..." rows="3" style="resize:vertical;"></textarea><p class="hint">详细描述您的服务领域，帮助用户更好地了解您的服务</p></div>
                         <div class="form-group">
                             <label>营业执照 *</label>
                             <div class="file-upload" id="licUpload" onclick="document.getElementById('licFile').click()">
@@ -85,6 +86,7 @@ Router.register('/register', {
                     var upRes = await UploadAPI.upload(window.licFile, 'business_license');
                     body.businessLicense = upRes.data.url;
                     body.address = document.getElementById('regAddr').value;
+                    body.businessFields = document.getElementById('regBizFields').value || undefined;
                 }
                 var res = await AuthAPI.register(body);
                 setToken(res.data.token);

@@ -52,6 +52,7 @@ public class AuthService {
                 .businessLicense(req.getBusinessLicense())
                 .creditCode(req.getCreditCode())
                 .address(req.getAddress())
+                .businessFields(req.getBusinessFields())
                 .build();
 
         user = userRepository.save(user);
