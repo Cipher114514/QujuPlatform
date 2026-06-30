@@ -70,6 +70,13 @@ public class User {
     /** 封禁截止时间 */
     private LocalDateTime banUntil;
 
+    /** 登录连续失败次数 */
+    @Builder.Default
+    private int loginFailCount = 0;
+
+    /** 登录临时锁定截止时间 */
+    private LocalDateTime lockedUntil;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

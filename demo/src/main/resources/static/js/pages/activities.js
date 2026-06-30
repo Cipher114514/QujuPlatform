@@ -81,6 +81,11 @@ Router.register('/activities', {
             '</select>\
                     <button id="actSearchBtn">搜索</button>\
                 </div>\
+                <div class="search-box" style="margin-top:8px;">\
+                    <input type="date" id="actDateFrom" class="form-input" style="width:140px;flex:none;" title="开始时间起点">\
+                    <span style="color:var(--text-secondary);font-size:13px;line-height:36px;">至</span>\
+                    <input type="date" id="actDateTo" class="form-input" style="width:140px;flex:none;" title="开始时间终点">\
+                </div>\
             </div>\
             <div id="actListContainer">\
                 <div style="text-align:center;padding:30px;color:var(--text-secondary);">\
@@ -119,14 +124,18 @@ function loadPage(page) {
     var searchInput = document.getElementById('actSearchInput');
     var catFilter = document.getElementById('actCategoryFilter');
     var sortEl = document.getElementById('actSort');
+    var dateFrom = document.getElementById('actDateFrom');
+    var dateTo = document.getElementById('actDateTo');
     if (searchInput) keyword = searchInput.value.trim();
     if (catFilter) category = catFilter.value;
     var sort = sortEl ? sortEl.value : 'newest';
+    var startFrom = dateFrom ? dateFrom.value : '';
+    var startTo = dateTo ? dateTo.value : '';
 
     var container = document.getElementById('actListContainer');
     container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-secondary);"><p>加载中...</p></div>';
 
-    loadActivities(keyword, category, sort, page).then(function (result) {
+    loadActivities(keyword, category, sort, startFrom, startTo, page).then(function (result) {
         var data = result.content || [];
         var totalPages = result.totalPages || 1;
         var pageNum = result.number || 0;
@@ -153,7 +162,7 @@ function loadPage(page) {
         html += '</div>';
         container.innerHTML = html;
 
-        renderPagination(pageNum, totalPages, keyword, category, sort);
+        renderPagination(pageNum, totalPages, keyword, category, sort, startFrom, startTo);
     }).catch(function (err) {
         container.innerHTML = '\
         <div class="empty-state" style="display:block;text-align:center;padding:40px;color:var(--danger);">\
@@ -163,7 +172,7 @@ function loadPage(page) {
     });
 }
 
-async function loadActivities(keyword, category, sort, page) {
+async function loadActivities(keyword, category, sort, startFrom, startTo, page) {
     if (ACT_LIST_USE_MOCK) {
         await new Promise(function (r) { return setTimeout(r, 400); });
 
@@ -179,6 +188,14 @@ async function loadActivities(keyword, category, sort, page) {
                 if (a.title.toLowerCase().indexOf(kw) === -1 && a.description.toLowerCase().indexOf(kw) === -1) {
                     return false;
                 }
+            }
+            if (startFrom) {
+                var sf = new Date(startFrom).getTime();
+                if (new Date(a.startTime).getTime() < sf) return false;
+            }
+            if (startTo) {
+                var st = new Date(startTo + 'T23:59:59').getTime();
+                if (new Date(a.startTime).getTime() > st) return false;
             }
             return true;
         });
@@ -202,6 +219,8 @@ async function loadActivities(keyword, category, sort, page) {
     var params = { page: page, size: 8, sort: sort };
     if (keyword) params.keyword = keyword;
     if (category) params.category = category;
+    if (startFrom) params.startFrom = startFrom + 'T00:00:00';
+    if (startTo) params.startTo = startTo + 'T23:59:59';
 
     var res = await ActivityAPI.list(params);
     return res.data;
@@ -240,7 +259,7 @@ function renderActCard(a) {
     </div>';
 }
 
-function renderPagination(page, totalPages, keyword, category, sort) {
+function renderPagination(page, totalPages, keyword, category, sort, startFrom, startTo) {
     var container = document.getElementById('actPagination');
     if (totalPages <= 1) {
         container.innerHTML = '';
@@ -252,26 +271,30 @@ function renderPagination(page, totalPages, keyword, category, sort) {
     // 上一页
     html += '<button class="btn btn-outline btn-sm" style="width:auto;" ' +
         (page <= 0 ? 'disabled' : '') +
-        ' onclick="goToActPage(' + (page - 1) + ',\'' + escHtmlAct(keyword) + '\',\'' + escHtmlAct(category) + '\',\'' + escHtmlAct(sort) + '\')">上一页</button>';
+        ' onclick="goToActPage(' + (page - 1) + ',\'' + escHtmlAct(keyword) + '\',\'' + escHtmlAct(category) + '\',\'' + escHtmlAct(sort) + '\',\'' + escHtmlAct(startFrom) + '\',\'' + escHtmlAct(startTo) + '\')">上一页</button>';
 
     html += '<span style="padding:0 8px;color:var(--text-secondary);">' + (page + 1) + ' / ' + totalPages + '</span>';
 
     // 下一页
     html += '<button class="btn btn-outline btn-sm" style="width:auto;" ' +
         (page >= totalPages - 1 ? 'disabled' : '') +
-        ' onclick="goToActPage(' + (page + 1) + ',\'' + escHtmlAct(keyword) + '\',\'' + escHtmlAct(category) + '\',\'' + escHtmlAct(sort) + '\')">下一页</button>';
+        ' onclick="goToActPage(' + (page + 1) + ',\'' + escHtmlAct(keyword) + '\',\'' + escHtmlAct(category) + '\',\'' + escHtmlAct(sort) + '\',\'' + escHtmlAct(startFrom) + '\',\'' + escHtmlAct(startTo) + '\')">下一页</button>';
 
     html += '</div>';
     container.innerHTML = html;
 }
 
-function goToActPage(page, keyword, category, sort) {
+function goToActPage(page, keyword, category, sort, startFrom, startTo) {
     var searchInput = document.getElementById('actSearchInput');
     var catFilter = document.getElementById('actCategoryFilter');
     var sortEl = document.getElementById('actSort');
+    var dateFrom = document.getElementById('actDateFrom');
+    var dateTo = document.getElementById('actDateTo');
     if (searchInput) searchInput.value = keyword;
     if (catFilter) catFilter.value = category;
     if (sortEl) sortEl.value = sort;
+    if (dateFrom) dateFrom.value = startFrom;
+    if (dateTo) dateTo.value = startTo;
     loadPage(page);
 }
 

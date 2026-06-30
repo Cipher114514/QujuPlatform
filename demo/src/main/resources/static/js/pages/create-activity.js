@@ -127,6 +127,16 @@ Router.register('/create-activity', {
             var cloneId = parseInt(Router.query.cloneFrom);
             if (cloneId) loadCloneDataToForm(cloneId);
         }
+        // 检查编辑入口
+        if (Router.query && Router.query.editFrom) {
+            var editId = parseInt(Router.query.editFrom);
+            if (editId) loadEditDataToForm(editId);
+        }
+        // 检查草稿编辑入口
+        if (Router.query && Router.query.editDraft) {
+            var draftId = parseInt(Router.query.editDraft);
+            if (draftId) loadEditDataToForm(draftId);
+        }
     }
 });
 
@@ -138,8 +148,28 @@ function loadDraft() {
 }
 
 function saveDraft(data) {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
-    toast('草稿已保存');
+    // 服务端持久化草稿
+    api('/activities/draft', { method: 'POST', body: {
+        title: data.title || '未命名活动',
+        description: data.description || '',
+        category: data.category || 'sports',
+        startTime: data.startTime ? new Date(data.startTime).toISOString() : new Date(Date.now() + 7*86400000).toISOString(),
+        endTime: data.endTime ? new Date(data.endTime).toISOString() : new Date(Date.now() + 7*86400000 + 2*3600000).toISOString(),
+        registrationDeadline: data.registrationDeadline ? new Date(data.registrationDeadline).toISOString() : null,
+        location: data.location || '',
+        maxParticipants: data.maxParticipants || 20,
+        fee: data.fee || 0,
+        tags: data.tags ? data.tags.split(',').map(function(t){ return t.trim(); }).filter(function(t){ return t; }) : [],
+        coverImage: data.coverImage || ''
+    }}).then(function() {
+        toast('草稿已保存');
+        // 同时保留localStorage作为本地备份
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+    }).catch(function(err) {
+        toast('草稿保存失败: ' + (err.message || '网络错误'), 'error');
+        // 降级到localStorage
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+    });
 }
 
 function clearDraft() {
@@ -265,8 +295,15 @@ async function submitActivity(data) {
             coverImage: data.coverImage || undefined
         };
 
-        var res = await api('/activities', { method: 'POST', body: body });
-        toast(res.message || '创建成功');
+        var editId = window._editingActivityId;
+        if (editId) {
+            var res = await api('/activities/' + editId, { method: 'PUT', body: body });
+            toast(res.message || '修改成功');
+            window._editingActivityId = null;
+        } else {
+            var res = await api('/activities', { method: 'POST', body: body });
+            toast(res.message || '创建成功');
+        }
         clearDraft();
         Router.navigate('/activities');
     } catch (err) {
@@ -342,4 +379,71 @@ async function loadCloneDataToForm(cloneId) {
 function setFieldVal(id, val) {
     var el = document.getElementById(id);
     if (el) el.value = val;
+}
+
+// ===== 编辑活动数据加载 =====
+async function loadEditDataToForm(editId) {
+    toast('正在加载活动数据...');
+    try {
+        var d;
+        if (CREATE_USE_MOCK) {
+            d = {
+                id: 1,
+                title: '周末篮球局',
+                description: '一起打篮球',
+                category: 'sports',
+                location: '朝阳公园',
+                maxParticipants: 20,
+                fee: 0,
+                tags: '篮球, 运动',
+                coverImage: '',
+                startTime: '2026-07-05T14:00:00',
+                endTime: '2026-07-05T17:00:00',
+                registrationDeadline: '2026-07-04T18:00:00'
+            };
+        } else {
+            var res = await api('/activities/' + editId);
+            d = res.data;
+        }
+
+        setFieldVal('actTitle', d.title || '');
+        setFieldVal('actCategory', CLONE_CAT_MAP[d.category] || '');
+        setFieldVal('actDesc', d.description || '');
+        setFieldVal('actLocation', d.location || '');
+        setFieldVal('actMaxParticipants', d.maxParticipants || 20);
+        setFieldVal('actFee', d.fee || 0);
+        setFieldVal('actTags', Array.isArray(d.tags) ? d.tags.join(', ') : (d.tags || ''));
+        setFieldVal('actCover', d.coverImage || '');
+        setFieldVal('actStartTime', formatForDatetimeLocal(d.startTime));
+        setFieldVal('actEndTime', formatForDatetimeLocal(d.endTime));
+        setFieldVal('actDeadline', formatForDatetimeLocal(d.registrationDeadline));
+
+        // 保存编辑ID到状态
+        window._editingActivityId = editId;
+
+        // 更新标题和按钮
+        var header = document.querySelector('.header h1');
+        if (header) header.textContent = '编辑活动';
+        var btn = document.getElementById('btnPublish');
+        if (btn) btn.textContent = '保存修改';
+        var draftBtn = document.getElementById('btnDraft');
+        if (draftBtn) draftBtn.style.display = 'none';
+
+        // 更新字数统计
+        var titleEl = document.getElementById('actTitle');
+        var descEl = document.getElementById('actDesc');
+        var titleCount = document.getElementById('titleCount');
+        var descCount = document.getElementById('descCount');
+        if (titleEl && titleCount) titleCount.textContent = titleEl.value.length;
+        if (descEl && descCount) descCount.textContent = descEl.value.length;
+
+        toast('已加载活动数据，修改后保存即可');
+    } catch (err) {
+        toast(err.message || '加载活动数据失败', 'error');
+    }
+}
+
+function formatForDatetimeLocal(iso) {
+    if (!iso) return '';
+    return iso.substring(0, 16);
 }

@@ -28,6 +28,9 @@ public class AuthService {
         if (userRepository.existsByNickname(req.getNickname())) {
             throw new BusinessException("该昵称已被使用");
         }
+        if (req.getBusinessLicense() != null && userRepository.existsByBusinessLicense(req.getBusinessLicense())) {
+            throw new BusinessException("该营业执照已被注册");
+        }
 
         UserRole role;
         try {
@@ -36,7 +39,7 @@ public class AuthService {
             throw new BusinessException("角色类型无效，可选值: user / business");
         }
 
-        UserStatus status = role == UserRole.BUSINESS ? UserStatus.PENDING : UserStatus.ACTIVE;
+        UserStatus status = UserStatus.ACTIVE;
 
         User user = User.builder()
                 .email(req.getEmail())
@@ -59,8 +62,10 @@ public class AuthService {
         User user = userRepository.findByEmail(req.getEmail())
                 .orElseThrow(() -> new BusinessException(401, "邮箱或密码错误"));
 
-        if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
-            throw new BusinessException(401, "邮箱或密码错误");
+        // 检查临时锁定
+        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(java.time.LocalDateTime.now())) {
+            long remainMinutes = java.time.Duration.between(java.time.LocalDateTime.now(), user.getLockedUntil()).toMinutes();
+            throw new BusinessException(429, "账号已被临时锁定，请" + (remainMinutes > 0 ? remainMinutes + "分钟后" : "稍后") + "重试");
         }
 
         if (user.getStatus() == UserStatus.BANNED) {
@@ -69,6 +74,22 @@ public class AuthService {
             if (user.getBanUntil() != null) msg += "，解封时间: " + user.getBanUntil();
             throw new BusinessException(403, msg);
         }
+
+        if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
+            // 记录失败次数
+            int failCount = user.getLoginFailCount() + 1;
+            user.setLoginFailCount(failCount);
+            if (failCount >= 5) {
+                user.setLockedUntil(java.time.LocalDateTime.now().plusMinutes(30));
+            }
+            userRepository.save(user);
+            throw new BusinessException(401, "邮箱或密码错误");
+        }
+
+        // 登录成功，重置失败计数
+        user.setLoginFailCount(0);
+        user.setLockedUntil(null);
+        userRepository.save(user);
 
         String token = jwtUtil.generateToken(user.getId(), user.getEmail(), user.getRole().name());
         return buildLoginResponse(user, token);

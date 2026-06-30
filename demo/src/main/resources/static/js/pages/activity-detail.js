@@ -60,6 +60,10 @@ Router.register('/activity/:id', {
                     self.handleRegister(activityId, data);
                 });
             }
+
+            // 加载留言
+            self.loadComments(activityId);
+            self.bindCommentEvents(activityId);
         } catch (err) {
             container.innerHTML = `
                 <div class="card" style="text-align:center;padding:60px 20px;">
@@ -126,6 +130,15 @@ Router.register('/activity/:id', {
         </div>
 
         ${actionHtml}
+
+        <div class="card" style="margin-top:16px;">
+            <h3 style="font-size:15px;margin-bottom:12px;">留言板</h3>
+            <div id="commentList"><p style="color:var(--text-secondary);font-size:13px;">加载中...</p></div>
+            <div id="commentInput" style="margin-top:12px;display:flex;gap:8px;">
+                <input type="text" id="commentContent" placeholder="发表留言（200字以内）" maxlength="200" style="flex:1;" class="form-input">
+                <button id="btnPostComment" class="btn btn-primary btn-sm" style="width:auto;white-space:nowrap;">发布</button>
+            </div>
+        </div>
         `;
     },
 
@@ -166,9 +179,6 @@ Router.register('/activity/:id', {
     },
 
     handleRegister: async function(activityId, data) {
-        var self = this;
-
-        // 安全须知弹窗
         var confirmed = confirm(
             '【安全须知】\n\n' +
             '1. 请在活动开始前确认活动真实性，注意人身和财产安全。\n' +
@@ -222,6 +232,86 @@ Router.register('/activity/:id', {
                 toast(err.message, 'error');
             }
         }
+    },
+
+    // ====== US-043/044 留言板 ======
+    loadComments: async function(activityId) {
+        try {
+            var res = await api('/activities/' + activityId + '/comments');
+            this.renderComments(res.data);
+        } catch (err) {
+            document.getElementById('commentList').innerHTML =
+                '<p style="color:var(--text-secondary);font-size:13px;">留言加载失败</p>';
+        }
+    },
+
+    renderComments: function(comments) {
+        var el = document.getElementById('commentList');
+        if (!comments || comments.length === 0) {
+            el.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">暂无留言，快来发表第一条吧</p>';
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < comments.length; i++) {
+            html += renderCommentItem(comments[i]);
+        }
+        el.innerHTML = html;
+    },
+
+    bindCommentEvents: function(activityId) {
+        var self = this;
+        document.getElementById('btnPostComment').addEventListener('click', function() {
+            self.doPostComment(activityId, null);
+        });
+        document.getElementById('commentContent').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') self.doPostComment(activityId, null);
+        });
+        document.getElementById('commentList').addEventListener('click', function(e) {
+            var btn = e.target.closest('button');
+            if (!btn) return;
+            var id = parseInt(btn.dataset.id);
+            if (btn.classList.contains('btn-reply')) {
+                var replyInput = document.getElementById('replyInput-' + id);
+                var content = replyInput ? replyInput.value.trim() : '';
+                if (!content) { toast('请输入回复内容', 'error'); return; }
+                self.doPostComment(activityId, id, content);
+            }
+            if (btn.classList.contains('btn-report')) {
+                self.doReportComment(activityId, id);
+            }
+        });
+    },
+
+    doPostComment: async function(activityId, parentId, replyContent) {
+        var content = replyContent || document.getElementById('commentContent').value.trim();
+        if (!content) { toast('请输入留言内容', 'error'); return; }
+        if (content.length > 200) { toast('留言不能超过200字', 'error'); return; }
+
+        var body = { content: content };
+        if (parentId) body.parentId = parentId;
+
+        try {
+            await api('/activities/' + activityId + '/comments', { method: 'POST', body: body });
+            if (!parentId) document.getElementById('commentContent').value = '';
+            this.loadComments(activityId);
+        } catch (err) {
+            toast(err.message || '留言失败', 'error');
+        }
+    },
+
+    doReportComment: async function(activityId, commentId) {
+        var reason = prompt('请选择举报原因：\n1. 垃圾广告\n2. 人身攻击\n3. 色情低俗\n4. 违法违规\n5. 其他\n\n输入序号：');
+        var reasons = ['垃圾广告', '人身攻击', '色情低俗', '违法违规', '其他'];
+        var idx = parseInt(reason) - 1;
+        if (isNaN(idx) || idx < 0 || idx >= reasons.length) { toast('已取消举报'); return; }
+        try {
+            await api('/activities/' + activityId + '/comments/' + commentId + '/report',
+                { method: 'PUT', body: { reason: reasons[idx] } });
+            toast('举报成功，我们将尽快处理');
+            this.loadComments(activityId);
+        } catch (err) {
+            toast(err.message || '举报失败', 'error');
+        }
     }
 });
 
@@ -263,6 +353,84 @@ function escapeHtml(str) {
 function sleep(ms) {
     return new Promise(function(resolve) { setTimeout(resolve, ms); });
 }
+
+// ====== US-043/044 留言渲染 ======
+function renderCommentItem(c) {
+    var user = c.user || {};
+    var nickname = escapeHtml(user.nickname || '匿名');
+    var time = formatTime(c.createdAt);
+    var isReported = c.reportStatus === 'REPORTED';
+    var content = escapeHtml(c.content || '');
+
+    var html = '\
+    <div class="comment-item" style="padding:10px 0;border-bottom:1px solid var(--border);">\
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">\
+            <span style="font-weight:600;font-size:13px;">' + nickname + '</span>\
+            <span style="font-size:11px;color:var(--text-secondary);">' + time + '</span>\
+            ' + (isReported ? '<span style="font-size:11px;color:var(--danger);">[已举报]</span>' : '') + '\
+        </div>\
+        <p style="font-size:14px;margin:4px 0;' + (isReported ? 'color:var(--text-secondary);font-style:italic;' : '') + '">' + content + '</p>\
+        <div style="display:flex;gap:8px;">\
+            <button class="btn-reply btn btn-outline btn-sm" data-id="' + c.id + '" style="font-size:11px;width:auto;padding:2px 10px;">回复</button>\
+            ' + (!isReported ? '<button class="btn-report btn btn-outline btn-sm" data-id="' + c.id + '" style="font-size:11px;width:auto;padding:2px 10px;color:var(--danger);">举报</button>' : '') + '\
+        </div>\
+        <div id="replyBox-' + c.id + '" style="display:none;margin-top:6px;">\
+            <div style="display:flex;gap:6px;">\
+                <input type="text" id="replyInput-' + c.id + '" placeholder="回复 ' + nickname + '" maxlength="200" class="form-input" style="font-size:12px;">\
+            </div>\
+        </div>';
+
+    // 渲染回复
+    if (c.replies && c.replies.length) {
+        html += '<div style="margin-left:20px;padding-left:12px;border-left:2px solid var(--border);">';
+        for (var r = 0; r < c.replies.length; r++) {
+            var reply = c.replies[r];
+            var ruser = reply.user || {};
+            var rnick = escapeHtml(ruser.nickname || '匿名');
+            var rtime = formatTime(reply.createdAt);
+            var risReported = reply.reportStatus === 'REPORTED';
+            html += '\
+            <div style="padding:6px 0;' + (r > 0 ? 'border-top:1px solid var(--border);' : '') + '">\
+                <span style="font-weight:600;font-size:12px;">' + rnick + '</span>\
+                <span style="font-size:10px;color:var(--text-secondary);margin-left:6px;">' + rtime + '</span>\
+                ' + (risReported ? '<span style="font-size:10px;color:var(--danger);margin-left:6px;">[已举报]</span>' : '') + '\
+                <p style="font-size:13px;margin:2px 0;">' + escapeHtml(reply.content || '') + '</p>\
+            </div>';
+        }
+        html += '</div>';
+    }
+
+    html += '</div>';
+    return html;
+}
+
+// 展开回复输入框（通过事件委托处理）
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('btn-reply')) {
+        var id = e.target.dataset.id;
+        var box = document.getElementById('replyBox-' + id);
+        if (box) {
+            box.style.display = box.style.display === 'none' ? 'block' : 'none';
+            var input = document.getElementById('replyInput-' + id);
+            if (input && box.style.display === 'block') {
+                input.focus();
+                input.addEventListener('keypress', function(ev) {
+                    if (ev.key === 'Enter') {
+                        var detailPage = Router.routes['/activity/:id'];
+                        if (!detailPage) return;
+                        // 找到当前activityId并提交回复
+                        var content = input.value.trim();
+                        if (!content) return;
+                        var hash = window.location.hash;
+                        var parts = hash.split('/');
+                        var activityId = parts[parts.length - 1];
+                        detailPage.config.doPostComment(activityId, parseInt(id), content);
+                    }
+                });
+            }
+        }
+    }
+});
 
 // ====== Mock 数据 ======
 var MOCK_ACTIVITY_DETAIL = {

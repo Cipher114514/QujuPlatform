@@ -23,4 +23,7 @@ public interface ActivityRepository extends JpaRepository<Activity, Long>, JpaSp
 
     /** m2: 按创建者ID降序查询活动列表 */
     List<Activity> findByCreatorIdOrderByCreatedAtDesc(Long creatorId);
+
+    /** US-008: 按创建者ID和状态查询草稿 */
+    List<Activity> findByCreatorIdAndStatusOrderByCreatedAtDesc(Long creatorId, String status);
 }

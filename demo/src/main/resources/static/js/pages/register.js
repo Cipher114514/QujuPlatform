@@ -80,15 +80,10 @@ Router.register('/register', {
                     body.address = document.getElementById('regAddr').value;
                 }
                 var res = await AuthAPI.register(body);
-                if (role === 'business') {
-                    toast('注册成功！请等待管理员审核通过。');
-                    setTimeout(function(){ Router.navigate('/login'); }, 1500);
-                } else {
-                    setToken(res.data.token);
-                    setCurUser(res.data.user);
-                    toast('注册成功！');
-                    Router.navigate('/home');
-                }
+                setToken(res.data.token);
+                setCurUser(res.data.user);
+                toast('注册成功！');
+                Router.navigate('/home');
             } catch (err) {
                 alertEl.textContent = err.message || '注册失败';
                 alertEl.className = 'alert alert-error show';

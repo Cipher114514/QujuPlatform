@@ -1,6 +1,6 @@
 // ====== 我的活动管理页 ======
 // 路由: #/my-activities
-// 覆盖故事: US-009 活动克隆
+// 覆盖故事: US-009 活动修改与撤销 / 活动克隆
 
 const USE_MOCK_MY_ACT = false;
 
@@ -18,6 +18,7 @@ Router.register('/my-activities', {
         return '\
         <div class="home-content">\
             <div class="welcome-card"><h2>我的活动</h2><p>管理你创建的活动，支持克隆复用</p></div>\
+            <div id="draftSection" style="margin-bottom:12px;"></div>\
             <div id="myActivitiesContainer">\
                 <div style="text-align:center;padding:30px;color:var(--text-secondary);">\
                     <p>加载中...</p>\
@@ -29,6 +30,7 @@ Router.register('/my-activities', {
 
     init: function () {
         loadMyActivities();
+        loadMyDrafts();
     }
 });
 
@@ -101,6 +103,10 @@ function renderMyActivityCard(a) {
         <div class="my-card-actions">\
             <button class="btn btn-outline btn-sm btn-view" data-id="' + a.id + '">查看</button>\
             <button class="btn btn-outline btn-sm btn-clone" data-id="' + a.id + '">克隆</button>\
+            ' + (a.status === 'ACTIVE' ? '\
+            <button class="btn btn-outline btn-sm btn-edit" data-id="' + a.id + '">编辑</button>\
+            <button class="btn btn-outline btn-sm btn-cancel" data-id="' + a.id + '" style="color:var(--danger);">撤销</button>\
+            ' : '') + '\
         </div>\
     </div>';
 }
@@ -120,7 +126,30 @@ function bindMyCardEvents() {
         if (btn.classList.contains('btn-clone')) {
             doCloneMyActivity(id);
         }
+
+        if (btn.classList.contains('btn-edit')) {
+            Router.navigate('/create-activity?editFrom=' + id);
+        }
+
+        if (btn.classList.contains('btn-cancel')) {
+            doCancelMyActivity(id);
+        }
     });
+}
+
+async function doCancelMyActivity(id) {
+    if (!confirm('确定要撤销这个活动吗？撤销后活动将下架，且不可恢复。')) return;
+    try {
+        if (USE_MOCK_MY_ACT) {
+            toast('活动已撤销');
+        } else {
+            await api('/activities/' + id + '/cancel', { method: 'PUT' });
+            toast('活动已撤销');
+        }
+        loadMyActivities();
+    } catch (err) {
+        toast(err.message || '撤销失败', 'error');
+    }
 }
 
 async function doCloneMyActivity(id) {
@@ -161,4 +190,43 @@ function formatMyTime(iso) {
     var minutes = d.getMinutes();
     if (minutes < 10) minutes = '0' + minutes;
     return month + '月' + day + '日 ' + hours + ':' + minutes;
+}
+
+// ====== US-008 草稿箱 ======
+async function loadMyDrafts() {
+    var section = document.getElementById('draftSection');
+    try {
+        var res = await api('/activities/drafts');
+        var drafts = res.data;
+        if (!drafts || drafts.length === 0) { section.innerHTML = ''; return; }
+
+        var html = '<div class="card" style="margin-bottom:12px;">\
+            <h3 style="font-size:14px;margin-bottom:8px;">草稿箱 (' + drafts.length + ')</h3>';
+        for (var i = 0; i < drafts.length; i++) {
+            var d = drafts[i];
+            html += '\
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">\
+                <span style="font-size:13px;">' + escHtmlMyAct(d.title || '未命名') + '</span>\
+                <div style="display:flex;gap:6px;">\
+                    <button class="btn btn-outline btn-sm" onclick="Router.navigate(\'/create-activity?editDraft=' + d.id + '\')" style="width:auto;font-size:11px;">编辑</button>\
+                    <button class="btn btn-outline btn-sm" onclick="deleteMyDraft(' + d.id + ')" style="width:auto;font-size:11px;color:var(--danger);">删除</button>\
+                </div>\
+            </div>';
+        }
+        html += '</div>';
+        section.innerHTML = html;
+    } catch (err) {
+        section.innerHTML = '';
+    }
+}
+
+async function deleteMyDraft(id) {
+    if (!confirm('确定删除该草稿？')) return;
+    try {
+        await api('/activities/' + id + '/cancel', { method: 'PUT' });
+        toast('草稿已删除');
+        loadMyDrafts();
+    } catch (err) {
+        toast(err.message || '删除失败', 'error');
+    }
 }

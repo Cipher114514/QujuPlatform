@@ -47,12 +47,17 @@ Router.register('/profile', {
         var genderMap = { male:'男', female:'女', other:'其他' };
 
         document.getElementById('profileCard').innerHTML = '\
+            <div style="text-align:center;margin-bottom:16px;">\
+                ' + (u.avatar ? '<img src="' + escapeHtml(u.avatar) + '" style="width:80px;height:80px;border-radius:50%;object-fit:cover;">' : '<div style="width:80px;height:80px;border-radius:50%;background:var(--primary);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;">' + (u.nickname ? u.nickname.charAt(0) : '?') + '</div>') + '\
+            </div>\
             <div class="field"><span class="key">邮箱</span><span class="val">' + u.email + '</span></div>\
             <div class="field"><span class="key">昵称</span><span class="val">' + escapeHtml(u.nickname) + '</span></div>\
             <div class="field"><span class="key">手机号</span><span class="val">' + escapeHtml(u.phone || '未设置') + '</span></div>\
             <div class="field"><span class="key">性别</span><span class="val">' + (genderMap[u.gender] || u.gender || '未设置') + '</span></div>\
             <div class="field"><span class="key">生日</span><span class="val">' + (u.birthday || '未设置') + '</span></div>\
             <div class="field"><span class="key">个性签名</span><span class="val">' + escapeHtml(u.bio || '未设置') + '</span></div>\
+            ' + (u.role !== 'business' ? '\
+            <div class="field"><span class="key">兴趣标签</span><span class="val">' + escapeHtml(u.tags || '未设置') + '</span></div>' : '') + '\
             ' + (u.role === 'business' ? '\
             <div class="field"><span class="key">商家地址</span><span class="val">' + escapeHtml(u.address || '未设置') + '</span></div>\
             <div class="field"><span class="key">关注领域</span><span class="val">' + escapeHtml(u.businessFields || '未设置') + '</span></div>' : '') + '\
@@ -81,7 +86,16 @@ Router.register('/profile', {
         ];
 
         document.getElementById('profileCard').innerHTML = '\
-        <form id="profileForm">\
+        <form id="profileForm" enctype="multipart/form-data">\
+            <div class="form-group">\
+                <label>头像</label>\
+                <div style="display:flex;align-items:center;gap:12px;">\
+                    <img id="avatarPreview" src="' + (u.avatar || '') + '" style="width:60px;height:60px;border-radius:50%;object-fit:cover;' + (u.avatar ? '' : 'display:none;') + '">\
+                    <div style="width:60px;height:60px;border-radius:50%;background:var(--primary);color:#fff;display:' + (u.avatar ? 'none' : 'inline-flex') + ';align-items:center;justify-content:center;font-size:24px;font-weight:700;" id="avatarFallback">' + (u.nickname ? u.nickname.charAt(0) : '?') + '</div>\
+                    <input type="file" name="avatarFile" accept="image/*" style="font-size:13px;">\
+                </div>\
+                <span class="hint">支持 JPG/PNG，选新文件后自动上传</span>\
+            </div>\
             <div class="form-group">\
                 <label>邮箱</label>\
                 <input class="form-input" value="' + u.email + '" disabled>\
@@ -110,6 +124,12 @@ Router.register('/profile', {
                 <textarea class="form-input" name="bio" maxlength="200" rows="3" style="resize:vertical;">' + escapeHtml(u.bio || '') + '</textarea>\
                 <span class="hint">最多200字</span>\
             </div>\
+            ' + (u.role !== 'business' ? '\
+            <div class="form-group">\
+                <label>兴趣标签</label>\
+                <input class="form-input" name="tags" maxlength="200" value="' + escapeHtml(u.tags || '') + '" placeholder="多个标签用逗号分隔">\
+                <span class="hint">多个标签用逗号分隔，如：摄影,户外,美食</span>\
+            </div>' : '') + '\
             ' + (u.role === 'business' ? '\
             <div class="form-group">\
                 <label>商家地址</label>\
@@ -130,6 +150,20 @@ Router.register('/profile', {
         var self = this;
         document.getElementById('profileForm').addEventListener('submit', function(e) { self.handleSave(e); });
         document.getElementById('profileCancelBtn').addEventListener('click', function() { self.renderReadView(); });
+
+        // 头像预览
+        document.querySelector('#profileForm [name="avatarFile"]').addEventListener('change', function() {
+            var file = this.files[0];
+            if (file) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('avatarPreview').src = e.target.result;
+                    document.getElementById('avatarPreview').style.display = '';
+                    document.getElementById('avatarFallback').style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
     },
 
     handleSave: async function(e) {
@@ -139,13 +173,33 @@ Router.register('/profile', {
         btn.disabled = true;
         btn.textContent = '保存中...';
 
+        // 处理头像文件上传
+        var avatarFileInput = document.querySelector('#profileForm [name="avatarFile"]');
+        var avatarUrl = null;
+        if (avatarFileInput && avatarFileInput.files.length > 0) {
+            try {
+                var uploadRes = await UploadAPI.upload(avatarFileInput.files[0], 'avatar');
+                avatarUrl = uploadRes.data.url;
+            } catch (err) {
+                alertEl.style.display = 'block';
+                alertEl.innerHTML = '<div class="alert alert-error show">头像上传失败: ' + (err.message || '未知错误') + '</div>';
+                btn.disabled = false;
+                btn.textContent = '保存修改';
+                return;
+            }
+        }
+
         var data = {};
         document.querySelectorAll('#profileForm [name]').forEach(function(el) {
+            if (el.type === 'file') return;
             var v = el.value.trim();
-            if (v !== '' || el.name === 'bio' || el.name === 'address' || el.name === 'businessFields') {
+            if (v !== '' || el.name === 'bio' || el.name === 'address' || el.name === 'businessFields' || el.name === 'tags') {
                 data[el.name] = v;
             }
         });
+        if (avatarUrl) {
+            data.avatar = avatarUrl;
+        }
 
         try {
             var res = await UserAPI.update(data);
