@@ -29,9 +29,17 @@ public class RegistrationService {
             throw new BusinessException("您不能报名自己创建的活动");
         }
 
-        // 检查是否已报名
-        if (registrationRepository.existsByActivityIdAndUserId(activityId, userId)) {
-            throw new BusinessException("您已报名该活动");
+        // 检查是否已存在有效报名（已取消的允许重新报名）
+        var existingReg = registrationRepository.findByActivityIdAndUserId(activityId, userId);
+        if (existingReg.isPresent()) {
+            Registration reg = existingReg.get();
+            if ("CONFIRMED".equals(reg.getStatus())) {
+                throw new BusinessException("您已报名该活动");
+            }
+            if ("CANCELLED".equals(reg.getStatus())) {
+                // 重新激活已取消的报名记录
+                return reactivateRegistration(activity, reg);
+            }
         }
 
         // 检查活动状态
@@ -60,5 +68,28 @@ public class RegistrationService {
                 .build();
 
         return registrationRepository.save(registration);
+    }
+
+    private Registration reactivateRegistration(Activity activity, Registration reg) {
+        // 检查活动状态
+        if (!"ACTIVE".equals(activity.getStatus())) {
+            throw new BusinessException("该活动当前不可报名");
+        }
+
+        // 检查报名截止时间
+        if (activity.getRegistrationDeadline() != null
+                && activity.getRegistrationDeadline().isBefore(LocalDateTime.now())) {
+            throw new BusinessException("报名已截止");
+        }
+
+        // 原子递增参与人数
+        int updated = activityRepository.incrementParticipants(activity.getId());
+        if (updated == 0) {
+            throw new BusinessException(409, "活动已满员");
+        }
+
+        reg.setStatus("CONFIRMED");
+        reg.setCancelledAt(null);
+        return registrationRepository.save(reg);
     }
 }
