@@ -5,6 +5,7 @@ import com.example.demo.dto.AiGenerateResponse;
 import com.example.demo.entity.ActivityTemplate;
 import com.example.demo.repository.ActivityTemplateRepository;
 
+import java.security.SecureRandom;
 import java.util.*;
 
 /**
@@ -12,6 +13,8 @@ import java.util.*;
  * 当真实 AI API 不可用时，使用预设模板 + 占位符替换模拟生成
  */
 public class TemplateProvider implements AiProvider {
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final ActivityTemplateRepository templateRepository;
 
@@ -44,7 +47,7 @@ public class TemplateProvider implements AiProvider {
             templates = templateRepository.findAll();
         }
 
-        ActivityTemplate template = templates.get(new Random().nextInt(templates.size()));
+        ActivityTemplate template = templates.get(SECURE_RANDOM.nextInt(templates.size()));
 
         String title = replacePlaceholders(template.getTitleTemplate(), request.getTopic());
         String description = replacePlaceholders(template.getDescriptionTemplate(), request.getTopic());
@@ -57,7 +60,7 @@ public class TemplateProvider implements AiProvider {
             CATEGORY_LOCATIONS.get(template.getCategory()));
         String location;
         if (locations != null && !locations.isEmpty()) {
-            location = locations.get(new Random().nextInt(locations.size()));
+            location = locations.get(SECURE_RANDOM.nextInt(locations.size()));
         } else {
             location = "待定";
         }
