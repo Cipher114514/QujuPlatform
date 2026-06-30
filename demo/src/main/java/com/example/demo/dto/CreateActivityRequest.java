@@ -31,6 +31,7 @@ public class CreateActivityRequest {
 
     @NotNull(message = "人数上限不能为空")
     @Min(value = 1, message = "人数上限必须大于0")
+    @Max(value = 100000, message = "人数上限不能超过100000")
     private Integer maxParticipants;
 
     @NotNull(message = "报名截止时间不能为空")

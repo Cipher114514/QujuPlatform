@@ -83,7 +83,7 @@ Router.register('/create-activity', {
                     <!-- 人数上限 -->
                     <div class="form-group">
                         <label>人数上限 <span style="color:var(--danger);">*</span></label>
-                        <input type="number" id="actMaxParticipants" placeholder="最大参与人数" min="1"
+                        <input type="number" id="actMaxParticipants" placeholder="最大参与人数" min="1" max="100000"
                             value="${draft.maxParticipants || 20}">
                         <div class="error-msg" id="errMaxParticipants"></div>
                     </div>
@@ -244,6 +244,7 @@ function validateForm(data) {
     else if (data.startTime && new Date(data.registrationDeadline) >= new Date(data.startTime)) { errors.push({ field: 'errDeadline', msg: '报名截止时间必须早于活动开始时间' }); }
     if (!data.location) { errors.push({ field: 'errLocation', msg: '请输入活动地点' }); }
     if (!data.maxParticipants || data.maxParticipants < 1) { errors.push({ field: 'errMaxParticipants', msg: '人数上限必须大于0' }); }
+    else if (data.maxParticipants > 100000) { errors.push({ field: 'errMaxParticipants', msg: '人数上限不能超过100000' }); }
     return errors;
 }
 

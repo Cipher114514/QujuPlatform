@@ -3,6 +3,7 @@ package com.example.demo.exception;
 import com.example.demo.common.Result;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -30,6 +31,11 @@ public class GlobalExceptionHandler {
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(", "));
         return ResponseEntity.badRequest().body(Result.fail(400, msg));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Result<Void>> handleMessageNotReadable(HttpMessageNotReadableException e) {
+        return ResponseEntity.badRequest().body(Result.fail(400, "请求数据格式错误，请检查输入值是否越界"));
     }
 
     @ExceptionHandler(Exception.class)
