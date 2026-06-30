@@ -167,6 +167,89 @@ public class ActivityService {
         return activityRepository.save(activity);
     }
 
+    /**
+     * US-008: 更新草稿（不做时间校验，允许任意非空内容）
+     */
+    public Activity updateDraft(Long draftId, CreateActivityRequest req, User editor) {
+        Activity activity = activityRepository.findById(draftId)
+                .orElseThrow(() -> new BusinessException(404, "草稿不存在"));
+
+        if (!activity.getCreatorId().equals(editor.getId())) {
+            throw new BusinessException("只能修改自己的草稿");
+        }
+
+        if (!"DRAFT".equals(activity.getStatus())) {
+            throw new BusinessException("只能修改草稿状态的活动");
+        }
+
+        String tagsStr = null;
+        if (req.getTags() != null && !req.getTags().isEmpty()) {
+            tagsStr = String.join(",", req.getTags());
+        }
+
+        activity.setTitle(req.getTitle() != null ? req.getTitle() : "未命名活动");
+        activity.setDescription(req.getDescription() != null ? req.getDescription() : "");
+        activity.setCategory(req.getCategory() != null ? req.getCategory() : "sports");
+        activity.setStartTime(req.getStartTime() != null ? req.getStartTime() : LocalDateTime.now().plusDays(7));
+        activity.setEndTime(req.getEndTime() != null ? req.getEndTime() : LocalDateTime.now().plusDays(7).plusHours(2));
+        activity.setLocation(req.getLocation() != null ? req.getLocation() : "");
+        activity.setMaxParticipants(req.getMaxParticipants() != null ? req.getMaxParticipants() : 20);
+        activity.setFee(req.getFee() != null ? req.getFee() : BigDecimal.ZERO);
+        activity.setTags(tagsStr);
+        activity.setCoverImage(req.getCoverImage());
+        activity.setRegistrationDeadline(req.getRegistrationDeadline());
+
+        return activityRepository.save(activity);
+    }
+
+    /**
+     * US-008: 发布草稿（将草稿状态改为ACTIVE）
+     */
+    public Activity publishDraft(Long draftId, CreateActivityRequest req, User publisher) {
+        Activity activity = activityRepository.findById(draftId)
+                .orElseThrow(() -> new BusinessException(404, "草稿不存在"));
+
+        if (!activity.getCreatorId().equals(publisher.getId())) {
+            throw new BusinessException("只能发布自己的草稿");
+        }
+
+        if (!"DRAFT".equals(activity.getStatus())) {
+            throw new BusinessException("只能发布草稿状态的活动");
+        }
+
+        // 发布时进行时间校验
+        if (req.getStartTime() != null && !req.getStartTime().isAfter(LocalDateTime.now())) {
+            throw new BusinessException("活动开始时间必须晚于当前系统时间");
+        }
+        if (req.getEndTime() != null && req.getStartTime() != null && !req.getEndTime().isAfter(req.getStartTime())) {
+            throw new BusinessException("活动结束时间必须晚于开始时间");
+        }
+        if (req.getRegistrationDeadline() != null && req.getStartTime() != null
+                && !req.getRegistrationDeadline().isBefore(req.getStartTime())) {
+            throw new BusinessException("报名截止时间必须早于活动开始时间");
+        }
+
+        String tagsStr = null;
+        if (req.getTags() != null && !req.getTags().isEmpty()) {
+            tagsStr = String.join(",", req.getTags());
+        }
+
+        activity.setTitle(req.getTitle() != null ? req.getTitle() : "未命名活动");
+        activity.setDescription(req.getDescription() != null ? req.getDescription() : "");
+        activity.setCategory(req.getCategory() != null ? req.getCategory() : "sports");
+        activity.setStartTime(req.getStartTime() != null ? req.getStartTime() : LocalDateTime.now().plusDays(7));
+        activity.setEndTime(req.getEndTime() != null ? req.getEndTime() : LocalDateTime.now().plusDays(7).plusHours(2));
+        activity.setLocation(req.getLocation() != null ? req.getLocation() : "");
+        activity.setMaxParticipants(req.getMaxParticipants() != null ? req.getMaxParticipants() : 20);
+        activity.setFee(req.getFee() != null ? req.getFee() : BigDecimal.ZERO);
+        activity.setTags(tagsStr);
+        activity.setCoverImage(req.getCoverImage());
+        activity.setRegistrationDeadline(req.getRegistrationDeadline());
+        activity.setStatus("ACTIVE");
+
+        return activityRepository.save(activity);
+    }
+
     /** US-008: 获取用户草稿 */
     public java.util.List<Activity> getDrafts(Long userId) {
         return activityRepository.findByCreatorIdAndStatusOrderByCreatedAtDesc(userId, "DRAFT");

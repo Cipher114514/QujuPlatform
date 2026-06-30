@@ -59,9 +59,11 @@ Router.register('/profile', {
             ' + (u.role !== 'business' ? '\
             <div class="field"><span class="key">兴趣标签</span><span class="val">' + escapeHtml(u.tags || '未设置') + '</span></div>' : '') + '\
             ' + (u.role === 'business' ? '\
+            <div class="field" style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px;"><span class="key" style="font-weight:700;color:var(--primary);">🏪 店铺信息</span></div>\
+            <div class="field"><span class="key">品牌昵称</span><span class="val">' + escapeHtml(u.nickname) + ' <span style="font-size:11px;color:var(--text-secondary);">(作为店铺名称展示)</span></span></div>\
             <div class="field"><span class="key">统一社会信用代码</span><span class="val">' + escapeHtml(u.creditCode || '未设置') + '</span></div>\
             <div class="field"><span class="key">商家地址</span><span class="val">' + escapeHtml(u.address || '未设置') + '</span></div>\
-            <div class="field"><span class="key">关注领域</span><span class="val">' + escapeHtml(u.businessFields || '未设置') + '</span></div>' : '') + '\
+            <div class="field"><span class="key">服务领域描述</span><span class="val"><div style="font-size:13px;line-height:1.6;max-width:400px;">' + (u.businessFields ? escapeHtml(u.businessFields).replace(/\n/g, '<br>') : '未设置') + '</div></span></div>' : '') + '\
             <div class="field"><span class="key">角色</span><span class="val"><span class="role-badge ' + u.role + '">' + (roleMap[u.role] || u.role) + '</span></span></div>\
             <div class="field"><span class="key">注册时间</span><span class="val">' + (u.createdAt || '') + '</span></div>';
 
@@ -132,17 +134,24 @@ Router.register('/profile', {
                 <span class="hint">多个标签用逗号分隔，如：摄影,户外,美食</span>\
             </div>' : '') + '\
             ' + (u.role === 'business' ? '\
+            <div style="margin:16px 0;padding:16px;background:#eef2ff;border-radius:8px;border:1px solid var(--primary);">\
+                <div style="font-weight:700;color:var(--primary);margin-bottom:12px;">🏪 店铺资料维护</div>\
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">完善店铺信息，帮助用户更好地了解您的服务</div>\
+            </div>\
             <div class="form-group">\
                 <label>统一社会信用代码</label>\
-                <input class="form-input" name="creditCode" maxlength="18" value="' + escapeHtml(u.creditCode || '') + '">\
+                <input class="form-input" name="creditCode" maxlength="18" value="' + escapeHtml(u.creditCode || '') + '" placeholder="18位统一社会信用代码">\
+                <span class="hint">请填写准确的统一社会信用代码</span>\
             </div>\
             <div class="form-group">\
                 <label>商家地址</label>\
-                <input class="form-input" name="address" maxlength="200" value="' + escapeHtml(u.address || '') + '">\
+                <input class="form-input" name="address" maxlength="200" value="' + escapeHtml(u.address || '') + '" placeholder="请填写商家经营地址">\
+                <span class="hint">详细地址，便于用户找到您的店铺</span>\
             </div>\
             <div class="form-group">\
-                <label>关注领域</label>\
-                <input class="form-input" name="businessFields" maxlength="200" value="' + escapeHtml(u.businessFields || '') + '">\
+                <label>服务领域描述</label>\
+                <textarea class="form-input" name="businessFields" maxlength="500" rows="4" style="resize:vertical;" placeholder="请描述您提供的主要服务领域和特色...">' + escapeHtml(u.businessFields || '') + '</textarea>\
+                <span class="hint">详细描述您的服务领域，如：青少年运动培训、企业团建活动策划等</span>\
             </div>' : '') + '\
             <div style="display:flex;gap:12px;margin-top:16px;">\
                 <button type="submit" class="btn btn-primary" id="profileSaveBtn">保存修改</button>\

@@ -135,7 +135,7 @@ Router.register('/create-activity', {
         // 检查草稿编辑入口
         if (Router.query && Router.query.editDraft) {
             var draftId = parseInt(Router.query.editDraft);
-            if (draftId) loadEditDataToForm(draftId);
+            if (draftId) loadEditDataToForm(draftId, true);
         }
     }
 });
@@ -148,6 +148,28 @@ function loadDraft() {
 }
 
 function saveDraft(data) {
+    // 检查是否全部为空
+    var hasContent = false;
+    var fields = ['title', 'category', 'description', 'startTime', 'endTime', 'registrationDeadline', 'location', 'tags', 'coverImage'];
+    for (var i = 0; i < fields.length; i++) {
+        if (data[fields[i]] && data[fields[i]].trim && data[fields[i]].trim()) {
+            hasContent = true;
+            break;
+        } else if (data[fields[i]] && !data[fields[i]].trim) {
+            hasContent = true;
+            break;
+        }
+    }
+    if (!hasContent) {
+        toast('请至少填写一项内容', 'error');
+        return;
+    }
+
+    // 如果正在编辑草稿，则更新草稿
+    if (window._isEditingDraft && window._editingActivityId) {
+        updateDraft(window._editingActivityId, data);
+        return;
+    }
     // 服务端持久化草稿
     api('/activities/draft', { method: 'POST', body: {
         title: data.title || '未命名活动',
@@ -170,6 +192,29 @@ function saveDraft(data) {
         // 降级到localStorage
         localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
     });
+}
+
+// 更新已有草稿
+async function updateDraft(draftId, data) {
+    try {
+        await api('/activities/' + draftId + '/draft', { method: 'PUT', body: {
+            title: data.title || '未命名活动',
+            description: data.description || '',
+            category: data.category || 'sports',
+            startTime: data.startTime ? data.startTime + ':00' : null,
+            endTime: data.endTime ? data.endTime + ':00' : null,
+            registrationDeadline: data.registrationDeadline ? data.registrationDeadline + ':00' : null,
+            location: data.location || '',
+            maxParticipants: data.maxParticipants || 20,
+            fee: data.fee || 0,
+            tags: data.tags ? data.tags.split(',').map(function(t){ return t.trim(); }).filter(function(t){ return t; }) : [],
+            coverImage: data.coverImage || ''
+        }});
+        toast('草稿已更新');
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+    } catch (err) {
+        toast('草稿更新失败: ' + (err.message || '网络错误'), 'error');
+    }
 }
 
 function clearDraft() {
@@ -297,10 +342,20 @@ async function submitActivity(data) {
         };
 
         var editId = window._editingActivityId;
+        var isDraft = window._isEditingDraft;
+
         if (editId) {
-            var res = await api('/activities/' + editId, { method: 'PUT', body: body });
-            toast(res.message || '修改成功');
+            if (isDraft) {
+                // 发布草稿
+                var res = await api('/activities/' + editId + '/publish', { method: 'POST', body: body });
+                toast(res.message || '草稿发布成功');
+            } else {
+                // 修改已发布活动
+                var res = await api('/activities/' + editId, { method: 'PUT', body: body });
+                toast(res.message || '修改成功');
+            }
             window._editingActivityId = null;
+            window._isEditingDraft = false;
         } else {
             var res = await api('/activities', { method: 'POST', body: body });
             toast(res.message || '创建成功');
@@ -383,7 +438,7 @@ function setFieldVal(id, val) {
 }
 
 // ===== 编辑活动数据加载 =====
-async function loadEditDataToForm(editId) {
+async function loadEditDataToForm(editId, isDraft) {
     toast('正在加载活动数据...');
     try {
         var d;
@@ -419,16 +474,20 @@ async function loadEditDataToForm(editId) {
         setFieldVal('actEndTime', formatForDatetimeLocal(d.endTime));
         setFieldVal('actDeadline', formatForDatetimeLocal(d.registrationDeadline));
 
-        // 保存编辑ID到状态
+        // 保存编辑ID和草稿状态
         window._editingActivityId = editId;
+        window._isEditingDraft = isDraft;
 
         // 更新标题和按钮
         var header = document.querySelector('.header h1');
-        if (header) header.textContent = '编辑活动';
+        if (header) header.textContent = isDraft ? '编辑草稿' : '编辑活动';
         var btn = document.getElementById('btnPublish');
-        if (btn) btn.textContent = '保存修改';
+        if (btn) btn.textContent = isDraft ? '发布活动' : '保存修改';
         var draftBtn = document.getElementById('btnDraft');
-        if (draftBtn) draftBtn.style.display = 'none';
+        if (draftBtn) {
+            draftBtn.style.display = isDraft ? 'inline-flex' : 'none';
+            draftBtn.textContent = '保存草稿';
+        }
 
         // 更新字数统计
         var titleEl = document.getElementById('actTitle');
@@ -438,7 +497,7 @@ async function loadEditDataToForm(editId) {
         if (titleEl && titleCount) titleCount.textContent = titleEl.value.length;
         if (descEl && descCount) descCount.textContent = descEl.value.length;
 
-        toast('已加载活动数据，修改后保存即可');
+        toast(isDraft ? '已加载草稿，可继续编辑或直接发布' : '已加载活动数据，修改后保存即可');
     } catch (err) {
         toast(err.message || '加载活动数据失败', 'error');
     }

@@ -53,6 +53,22 @@ public class ActivityController {
         return Result.ok("草稿已保存", activityService.saveDraft(req, currentUser));
     }
 
+    /** US-008: 更新草稿（不做时间校验，允许任意非空内容） */
+    @PutMapping("/{id}/draft")
+    public Result<Activity> updateDraft(@PathVariable Long id,
+                                       @RequestBody CreateActivityRequest req,
+                                       @AuthenticationPrincipal User currentUser) {
+        return Result.ok("草稿已更新", activityService.updateDraft(id, req, currentUser));
+    }
+
+    /** US-008: 发布草稿（将草稿状态改为ACTIVE） */
+    @PostMapping("/{id}/publish")
+    public Result<Activity> publishDraft(@PathVariable Long id,
+                                         @RequestBody CreateActivityRequest req,
+                                         @AuthenticationPrincipal User currentUser) {
+        return Result.ok("草稿发布成功", activityService.publishDraft(id, req, currentUser));
+    }
+
     /** US-008: 获取我的草稿列表 */
     @GetMapping("/drafts")
     public Result<java.util.List<Activity>> getDrafts(@AuthenticationPrincipal User currentUser) {
