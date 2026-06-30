@@ -29,6 +29,9 @@ dependencies {
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
+	// Jackson (DeepSeek AI JSON 解析)
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
+
 	// H2 for dev (单人快速启动,无需安装MySQL)
 	// runtimeOnly 'com.h2database:h2'
 
