@@ -39,7 +39,8 @@ public class ActivityController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTo,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "8") int size) {
-        return Result.ok(activitySearchService.searchActivities(keyword, category, tag, startFrom, startTo, page, size));
+            @RequestParam(defaultValue = "8") int size,
+            @RequestParam(defaultValue = "newest") String sort) {
+        return Result.ok(activitySearchService.searchActivities(keyword, category, tag, startFrom, startTo, page, size, sort));
     }
 }

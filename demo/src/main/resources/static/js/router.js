@@ -61,7 +61,25 @@ const Router = {
 
     /** 内部：加载当前哈希对应的页面 */
     _load() {
-        const hash = window.location.hash.slice(1) || '/login';
+        const rawHash = window.location.hash.slice(1) || '/login';
+
+        // 分离路径和查询参数
+        var qIndex = rawHash.indexOf('?');
+        var hash = qIndex !== -1 ? rawHash.substring(0, qIndex) : rawHash;
+        var queryStr = qIndex !== -1 ? rawHash.substring(qIndex + 1) : '';
+
+        // 将查询参数保存到 Router.query
+        Router.query = {};
+        if (queryStr) {
+            var pairs = queryStr.split('&');
+            for (var k = 0; k < pairs.length; k++) {
+                var kv = pairs[k].split('=');
+                if (kv.length === 2) {
+                    Router.query[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1]);
+                }
+            }
+        }
+
         var config = this.routes[hash];
         var params = {};
 

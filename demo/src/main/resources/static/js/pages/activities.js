@@ -14,6 +14,12 @@ var ACT_CATEGORIES = [
     { value: 'citywalk', label: '城市探索' }
 ];
 
+var ACT_SORT_OPTIONS = [
+    { value: 'newest',   label: '最新发布' },
+    { value: 'time_asc', label: '即将开始' },
+    { value: 'creator',  label: '按发起者' }
+];
+
 var ACT_CAT_LABEL = {};
 for (var i = 0; i < ACT_CATEGORIES.length; i++) {
     ACT_CAT_LABEL[ACT_CATEGORIES[i].value] = ACT_CATEGORIES[i].label;
@@ -68,6 +74,11 @@ Router.register('/activities', {
                 return '<option value="' + c.value + '">' + c.label + '</option>';
             }).join('') +
             '</select>\
+                    <select id="actSort" class="form-input" style="width:120px;flex:none;">' +
+            ACT_SORT_OPTIONS.map(function (s) {
+                return '<option value="' + s.value + '">' + s.label + '</option>';
+            }).join('') +
+            '</select>\
                     <button id="actSearchBtn">搜索</button>\
                 </div>\
             </div>\
@@ -81,24 +92,17 @@ Router.register('/activities', {
     },
 
     init: function () {
-        var currentPage = 0;
-        var totalPages = 1;
-        var keyword = '';
-        var category = '';
-
         loadPage(0);
 
         document.getElementById('actSearchInput').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                keyword = document.getElementById('actSearchInput').value.trim();
-                category = document.getElementById('actCategoryFilter').value;
-                loadPage(0);
-            }
+            if (e.key === 'Enter') loadPage(0);
         });
 
         document.getElementById('actSearchBtn').addEventListener('click', function () {
-            keyword = document.getElementById('actSearchInput').value.trim();
-            category = document.getElementById('actCategoryFilter').value;
+            loadPage(0);
+        });
+
+        document.getElementById('actSort').addEventListener('change', function () {
             loadPage(0);
         });
     },
@@ -114,13 +118,15 @@ function loadPage(page) {
 
     var searchInput = document.getElementById('actSearchInput');
     var catFilter = document.getElementById('actCategoryFilter');
+    var sortEl = document.getElementById('actSort');
     if (searchInput) keyword = searchInput.value.trim();
     if (catFilter) category = catFilter.value;
+    var sort = sortEl ? sortEl.value : 'newest';
 
     var container = document.getElementById('actListContainer');
     container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-secondary);"><p>加载中...</p></div>';
 
-    loadActivities(keyword, category, page).then(function (result) {
+    loadActivities(keyword, category, sort, page).then(function (result) {
         var data = result.content || [];
         var totalPages = result.totalPages || 1;
         var pageNum = result.number || 0;
@@ -147,7 +153,7 @@ function loadPage(page) {
         html += '</div>';
         container.innerHTML = html;
 
-        renderPagination(pageNum, totalPages, keyword, category);
+        renderPagination(pageNum, totalPages, keyword, category, sort);
     }).catch(function (err) {
         container.innerHTML = '\
         <div class="empty-state" style="display:block;text-align:center;padding:40px;color:var(--danger);">\
@@ -157,7 +163,7 @@ function loadPage(page) {
     });
 }
 
-async function loadActivities(keyword, category, page) {
+async function loadActivities(keyword, category, sort, page) {
     if (ACT_LIST_USE_MOCK) {
         await new Promise(function (r) { return setTimeout(r, 400); });
 
@@ -193,7 +199,7 @@ async function loadActivities(keyword, category, page) {
         };
     }
 
-    var params = { page: page, size: 8 };
+    var params = { page: page, size: 8, sort: sort };
     if (keyword) params.keyword = keyword;
     if (category) params.category = category;
 
@@ -234,7 +240,7 @@ function renderActCard(a) {
     </div>';
 }
 
-function renderPagination(page, totalPages, keyword, category) {
+function renderPagination(page, totalPages, keyword, category, sort) {
     var container = document.getElementById('actPagination');
     if (totalPages <= 1) {
         container.innerHTML = '';
@@ -246,24 +252,26 @@ function renderPagination(page, totalPages, keyword, category) {
     // 上一页
     html += '<button class="btn btn-outline btn-sm" style="width:auto;" ' +
         (page <= 0 ? 'disabled' : '') +
-        ' onclick="goToActPage(' + (page - 1) + ',\'' + escHtmlAct(keyword) + '\',\'' + escHtmlAct(category) + '\')">上一页</button>';
+        ' onclick="goToActPage(' + (page - 1) + ',\'' + escHtmlAct(keyword) + '\',\'' + escHtmlAct(category) + '\',\'' + escHtmlAct(sort) + '\')">上一页</button>';
 
     html += '<span style="padding:0 8px;color:var(--text-secondary);">' + (page + 1) + ' / ' + totalPages + '</span>';
 
     // 下一页
     html += '<button class="btn btn-outline btn-sm" style="width:auto;" ' +
         (page >= totalPages - 1 ? 'disabled' : '') +
-        ' onclick="goToActPage(' + (page + 1) + ',\'' + escHtmlAct(keyword) + '\',\'' + escHtmlAct(category) + '\')">下一页</button>';
+        ' onclick="goToActPage(' + (page + 1) + ',\'' + escHtmlAct(keyword) + '\',\'' + escHtmlAct(category) + '\',\'' + escHtmlAct(sort) + '\')">下一页</button>';
 
     html += '</div>';
     container.innerHTML = html;
 }
 
-function goToActPage(page, keyword, category) {
+function goToActPage(page, keyword, category, sort) {
     var searchInput = document.getElementById('actSearchInput');
     var catFilter = document.getElementById('actCategoryFilter');
+    var sortEl = document.getElementById('actSort');
     if (searchInput) searchInput.value = keyword;
     if (catFilter) catFilter.value = category;
+    if (sortEl) sortEl.value = sort;
     loadPage(page);
 }
 

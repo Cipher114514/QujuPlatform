@@ -152,8 +152,9 @@ Router.register('/activity/:id', {
 
         // 检查是否已过报名截止时间
         if (data.registrationDeadline) {
-            var now = new Date().toISOString();
-            if (now > data.registrationDeadline) {
+            var now = Date.now();
+            var deadline = new Date(data.registrationDeadline).getTime();
+            if (now > deadline) {
                 return '<div class="card" style="text-align:center;"><p style="color:var(--text-secondary);font-size:14px;">报名已截止</p></div>';
             }
         }
@@ -227,11 +228,11 @@ Router.register('/activity/:id', {
 // ====== 辅助函数 ======
 
 function getStatusInfo(data) {
-    var now = new Date().toISOString();
+    var now = Date.now();
     if (data.status === 'CANCELLED') return { label: '已取消', cls: 'ended' };
-    if (data.endTime && now > data.endTime) return { label: '已结束', cls: 'ended' };
-    if (data.startTime && now > data.startTime) return { label: '进行中', cls: 'active' };
-    if (data.registrationDeadline && now > data.registrationDeadline) return { label: '报名截止', cls: 'closed' };
+    if (data.endTime && now > new Date(data.endTime).getTime()) return { label: '已结束', cls: 'ended' };
+    if (data.startTime && now > new Date(data.startTime).getTime()) return { label: '进行中', cls: 'active' };
+    if (data.registrationDeadline && now > new Date(data.registrationDeadline).getTime()) return { label: '报名截止', cls: 'closed' };
     if (data.status === 'ACTIVE') return { label: '报名中', cls: 'open' };
     return { label: data.status, cls: 'default' };
 }

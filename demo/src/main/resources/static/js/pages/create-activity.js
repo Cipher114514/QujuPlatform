@@ -122,11 +122,9 @@ Router.register('/create-activity', {
 
     init: function() {
         bindFormEvents();
-        // 检查克隆入口
-        var hash = window.location.hash;
-        var cloneIdx = hash.indexOf('?cloneFrom=');
-        if (cloneIdx > -1) {
-            var cloneId = parseInt(hash.substring(cloneIdx + '?cloneFrom='.length));
+        // 检查克隆入口，使用 Router.query
+        if (Router.query && Router.query.cloneFrom) {
+            var cloneId = parseInt(Router.query.cloneFrom);
             if (cloneId) loadCloneDataToForm(cloneId);
         }
     }
@@ -296,26 +294,25 @@ var CLONE_CAT_MAP = {
 async function loadCloneDataToForm(cloneId) {
     toast('正在加载克隆数据...');
     try {
-        var res;
+        var d;
         if (CREATE_USE_MOCK) {
-            res = {
-                data: {
-                    title: '周末篮球局（克隆）',
-                    description: '一起打篮球',
-                    category: 'sports',
-                    location: '朝阳公园',
-                    maxParticipants: 20,
-                    fee: 0,
-                    tags: '篮球, 运动',
-                    coverImage: ''
-                }
+            d = {
+                title: '周末篮球局',
+                description: '一起打篮球',
+                category: 'sports',
+                location: '朝阳公园',
+                maxParticipants: 20,
+                fee: 0,
+                tags: '篮球, 运动',
+                coverImage: ''
             };
         } else {
-            res = await api('/activities/' + cloneId + '/clone', { method: 'POST' });
+            // 只读取原始活动信息，不提前写库
+            var res = await api('/activities/' + cloneId);
+            d = res.data;
         }
 
-        var d = res.data;
-        setFieldVal('actTitle', d.title || '');
+        setFieldVal('actTitle', (d.title || '') + '（克隆）');
         setFieldVal('actCategory', CLONE_CAT_MAP[d.category] || '');
         setFieldVal('actDesc', d.description || '');
         setFieldVal('actLocation', d.location || '');
@@ -323,6 +320,10 @@ async function loadCloneDataToForm(cloneId) {
         setFieldVal('actFee', d.fee || 0);
         setFieldVal('actTags', Array.isArray(d.tags) ? d.tags.join(', ') : (d.tags || ''));
         setFieldVal('actCover', d.coverImage || '');
+        // 时间字段清空，让用户重新选择
+        setFieldVal('actStartTime', '');
+        setFieldVal('actEndTime', '');
+        setFieldVal('actDeadline', '');
 
         // 更新字数统计
         var titleEl = document.getElementById('actTitle');

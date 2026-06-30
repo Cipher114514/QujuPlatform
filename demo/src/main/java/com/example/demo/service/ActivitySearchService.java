@@ -34,10 +34,11 @@ public class ActivitySearchService {
                                                           LocalDateTime startFrom,
                                                           LocalDateTime startTo,
                                                           int page,
-                                                          int size) {
+                                                          int size,
+                                                          String sort) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 30);
-        Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Pageable pageable = PageRequest.of(safePage, safeSize, buildSort(sort));
 
         Page<Activity> activities = activityRepository.findAll(buildSpec(keyword, category, tag, startFrom, startTo), pageable);
         Map<Long, User> creators = loadCreators(activities);
@@ -47,6 +48,15 @@ public class ActivitySearchService {
             String creatorName = creator == null ? "未知发起人" : creator.getNickname();
             return ActivitySummaryResponse.from(activity, creatorName);
         });
+    }
+
+    private Sort buildSort(String sort) {
+        return switch (sort) {
+            case "time_asc"  -> Sort.by(Sort.Direction.ASC, "startTime");
+            case "time_desc" -> Sort.by(Sort.Direction.DESC, "startTime");
+            case "creator"   -> Sort.by(Sort.Direction.ASC, "creatorId");
+            default          -> Sort.by(Sort.Direction.DESC, "createdAt");
+        };
     }
 
     private Specification<Activity> buildSpec(String keyword,

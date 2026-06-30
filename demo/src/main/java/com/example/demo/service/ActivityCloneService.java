@@ -5,6 +5,8 @@ import com.example.demo.repository.ActivityRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 public class ActivityCloneService {
@@ -19,6 +21,10 @@ public class ActivityCloneService {
             throw new RuntimeException("只能克隆自己创建的活动");
         }
 
+        // 给时间设置默认占位值，前端会清空让用户重新填写
+        LocalDateTime defaultStart = LocalDateTime.now().plusDays(7).withHour(9).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime defaultEnd   = defaultStart.plusHours(3);
+
         Activity cloned = Activity.builder()
                 .title(source.getTitle() + "（克隆）")
                 .description(source.getDescription())
@@ -32,8 +38,8 @@ public class ActivityCloneService {
                 .creatorId(currentUserId)
                 .status("ACTIVE")
                 .currentParticipants(0)
-                .startTime(null)
-                .endTime(null)
+                .startTime(defaultStart)
+                .endTime(defaultEnd)
                 .registrationDeadline(null)
                 .build();
 

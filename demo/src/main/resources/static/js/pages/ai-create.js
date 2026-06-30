@@ -49,6 +49,16 @@ var AI_CATEGORY_OPTIONS = [
     { value: 'citywalk', label: '城市探索' }
 ];
 
+// 模板建议：按分类提供的地点 + 标签
+var TEMPLATE_SUGGESTIONS = {
+    sports:    { locations: ['朝阳公园运动场', '市体育中心', '奥体中心综合馆', '社区篮球场', '附近体育馆'],          tags: '运动, 健身, 户外' },
+    hiking:    { locations: ['西山国家森林公园', '长城徒步路线', '香山登山步道', '雁栖湖环湖步道', '郊区自然景区'], tags: '户外, 徒步, 自然' },
+    boardgame: { locations: ['三里屯桌游俱乐部', '大学城休闲吧', 'CBD社交空间', '创意园区咖啡厅', '附近桌游吧'],    tags: '桌游, 聚会, 社交' },
+    study:     { locations: ['市图书馆自习室', '大学城共享空间', '创业孵化器路演厅', '文化艺术中心', '附近咖啡厅'], tags: '学习, 交流, 成长' },
+    charity:   { locations: ['社区活动中心', '敬老院', '流浪动物救助站', '城市公园', '福利院'],                     tags: '公益, 志愿, 爱心' },
+    citywalk:  { locations: ['老城区历史街区', '南锣鼓巷', '武康路/安福路', '沙面岛', '江滨步道', '大学校园'],      tags: '城市, 探索, 美食' }
+};
+
 Router.register('/ai-create', {
     title: 'AI创建活动',
     requireAuth: true,
@@ -202,7 +212,17 @@ function selectTemplate(t) {
     aiCreateState.form.category = t.category;
     aiCreateState.form.title = t.titleTemplate.replace(/\{[^}]+\}/g, '');
     aiCreateState.form.description = t.descriptionTemplate.replace(/\{[^}]+\}/g, '');
-    aiCreateState.form.tags = '';
+
+    // 按分类给出地点建议（随机）和标签建议
+    var sug = TEMPLATE_SUGGESTIONS[t.category];
+    if (sug) {
+        var locs = sug.locations;
+        aiCreateState.form.location = locs[Math.floor(Math.random() * locs.length)];
+        aiCreateState.form.tags = sug.tags;
+    } else {
+        aiCreateState.form.location = '';
+        aiCreateState.form.tags = '';
+    }
 
     document.getElementById('templateGrid').style.display = 'none';
 
@@ -221,11 +241,11 @@ function selectTemplate(t) {
         </div>\
         <div class="form-group">\
             <label>标签</label>\
-            <input type="text" id="tplTags" class="form-input" placeholder="多个标签用逗号分隔" value="">\
+            <input type="text" id="tplTags" class="form-input" placeholder="多个标签用逗号分隔" value="' + escHtmlAi(aiCreateState.form.tags) + '">\
         </div>\
         <div class="form-group">\
             <label>活动地点 <span style="color:#ef4444;">*</span></label>\
-            <input type="text" id="tplLocation" class="form-input" value="' + escHtmlAi(aiCreateState.form.location) + '">\
+            <input type="text" id="tplLocation" class="form-input" placeholder="选择建议或自定义输入" value="' + escHtmlAi(aiCreateState.form.location) + '">\
         </div>\
         ' + renderAiExtraFields() + '\
         <div style="display:flex;gap:8px;">\

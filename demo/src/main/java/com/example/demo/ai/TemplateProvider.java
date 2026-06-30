@@ -24,13 +24,13 @@ public class TemplateProvider implements AiProvider {
         "citywalk",  List.of("城市", "探索", "美食")
     );
 
-    private static final Map<String, String> CATEGORY_LOCATION = Map.of(
-        "sports",    "附近体育馆",
-        "hiking",    "郊区自然景区",
-        "boardgame", "附近桌游吧",
-        "study",     "附近咖啡厅/图书馆",
-        "charity",   "待定",
-        "citywalk",  "市中心商业区"
+    private static final Map<String, List<String>> CATEGORY_LOCATIONS = Map.of(
+        "sports",    List.of("附近体育馆", "朝阳公园运动场", "市体育中心", "奥体中心综合馆", "社区篮球场"),
+        "hiking",    List.of("郊区自然景区", "西山国家森林公园", "长城徒步路线", "香山登山步道", "雁栖湖环湖步道"),
+        "boardgame", List.of("附近桌游吧", "三里屯桌游俱乐部", "大学城休闲吧", "CBD社交空间", "创意园区咖啡厅"),
+        "study",     List.of("附近咖啡厅", "市图书馆自习室", "大学城共享空间", "创业孵化器路演厅", "文化艺术中心"),
+        "charity",   List.of("社区活动中心", "敬老院", "流浪动物救助站", "城市公园", "福利院"),
+        "citywalk",  List.of("老城区历史街区", "南锣鼓巷", "武康路/安福路", "沙面岛", "文创园区", "江滨步道", "大学校园")
     );
 
     public TemplateProvider(ActivityTemplateRepository templateRepository) {
@@ -53,8 +53,14 @@ public class TemplateProvider implements AiProvider {
             CATEGORY_TAGS.get(template.getCategory()));
         if (tags == null) tags = List.of(request.getTopic());
 
-        String location = CATEGORY_LOCATION.getOrDefault(request.getCategory(),
-            CATEGORY_LOCATION.getOrDefault(template.getCategory(), "待定"));
+        List<String> locations = CATEGORY_LOCATIONS.getOrDefault(request.getCategory(),
+            CATEGORY_LOCATIONS.get(template.getCategory()));
+        String location;
+        if (locations != null && !locations.isEmpty()) {
+            location = locations.get(new Random().nextInt(locations.size()));
+        } else {
+            location = "待定";
+        }
 
         return new AiGenerateResponse(title, description, tags, location);
     }

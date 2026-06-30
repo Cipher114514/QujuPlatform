@@ -124,39 +124,13 @@ function bindMyCardEvents() {
 }
 
 async function doCloneMyActivity(id) {
-    if (!confirm('确定要克隆这个活动吗？克隆后需要重新设置时间。')) return;
+    if (!confirm('确定要克隆这个活动吗？时间字段将被清空，需要重新设置。')) return;
 
-    try {
-        var res;
-        if (USE_MOCK_MY_ACT) {
-            var found = MOCK_MY_ACTIVITIES.filter(function (a) { return a.id === id; });
-            if (found.length) {
-                var newId = Math.floor(Math.random() * 1000) + 200;
-                res = {
-                    data: {
-                        id: newId,
-                        title: found[0].title + '（克隆）',
-                        description: found[0].description || '',
-                        category: found[0].category,
-                        location: found[0].location,
-                        maxParticipants: found[0].maxParticipants,
-                        fee: found[0].fee,
-                        tags: found[0].tags || '',
-                        coverImage: found[0].coverImage || ''
-                    }
-                };
-            }
-        } else {
-            res = await api('/activities/' + id + '/clone', { method: 'POST' });
-        }
-
-        toast('克隆成功！请设置活动时间后发布');
-        setTimeout(function () {
-            Router.navigate('/create-activity?cloneFrom=' + res.data.id);
-        }, 500);
-    } catch (err) {
-        toast(err.message || '克隆失败', 'error');
-    }
+    // 直接跳转到创建页，由创建页读取原始数据填表
+    toast('正在加载克隆数据...');
+    setTimeout(function () {
+        Router.navigate('/create-activity?cloneFrom=' + id);
+    }, 300);
 }
 
 function escHtmlMyAct(str) {
