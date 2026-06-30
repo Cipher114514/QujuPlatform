@@ -12,7 +12,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -120,6 +122,12 @@ public class FriendshipService {
                             .friendSince(f.getCreatedAt())
                             .build();
                 })
+                .collect(Collectors.toMap(
+                        FriendResponse::getId,
+                        Function.identity(),
+                        (existing, replacement) -> existing,
+                        LinkedHashMap::new))
+                .values().stream()
                 .collect(Collectors.toList());
     }
 

@@ -59,7 +59,7 @@ public class ActivityService {
                 .maxParticipants(req.getMaxParticipants())
                 .currentParticipants(0)
                 .fee(req.getFee() != null ? req.getFee() : BigDecimal.ZERO)
-                .status("PUBLISHED")  // US-006: 发布即上架，无需审核
+                .status("ACTIVE")  // 发布即上架，无需审核
                 .tags(tagsStr)
                 .images(imagesStr)
                 .coverImage(req.getCoverImage())

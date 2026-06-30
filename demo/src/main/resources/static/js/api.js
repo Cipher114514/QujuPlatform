@@ -27,7 +27,13 @@ async function api(path, options = {}) {
              : options.body ? JSON.stringify(options.body) : undefined
     });
 
-    const data = await res.json();
+    const text = await res.text();
+    var data;
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        data = { code: res.status, message: text || '服务器无响应' };
+    }
     if (!res.ok && data.code !== 200) {
         if (data.code === 401) { clearToken(); Router.navigate('/login'); }
         throw { code: data.code || res.status, message: data.message || '请求失败' };
