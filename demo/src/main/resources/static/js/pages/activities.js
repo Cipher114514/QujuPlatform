@@ -226,6 +226,16 @@ async function loadActivities(keyword, category, sort, startFrom, startTo, page)
     return res.data;
 }
 
+function getCardStatusBadge(a) {
+    var now = Date.now();
+    if (a.status === 'CANCELLED') return '<span class="status-badge status-ended">已取消</span>';
+    if (a.endTime && now > new Date(a.endTime).getTime()) return '<span class="status-badge status-ended">已结束</span>';
+    if (a.startTime && now > new Date(a.startTime).getTime()) return '<span class="status-badge status-active">进行中</span>';
+    if (a.registrationDeadline && now > new Date(a.registrationDeadline).getTime()) return '<span class="status-badge status-closed">报名截止</span>';
+    if (a.status === 'ACTIVE') return '<span class="status-badge status-open">报名中</span>';
+    return '';
+}
+
 function renderActCard(a) {
     var catLabel = ACT_CAT_LABEL[a.category] || a.category;
     var timeStr = formatActTime(a.startTime, a.endTime);
@@ -234,10 +244,11 @@ function renderActCard(a) {
     var participantPercent = a.maxParticipants > 0 ? Math.round(a.currentParticipants / a.maxParticipants * 100) : 0;
     var desc = a.description || '';
     if (desc.length > 60) desc = desc.substring(0, 60) + '...';
+    var badge = getCardStatusBadge(a);
 
     return '\
     <div class="activity-card" onclick="Router.navigate(\'/activity/' + a.id + '\')" style="cursor:pointer;">\
-        <div class="title">' + escHtmlAct(a.title) + '</div>\
+        <div class="title" style="display:flex;align-items:center;gap:8px;">' + escHtmlAct(a.title) + ' ' + badge + '</div>\
         <div class="meta" style="margin-top:6px;">\
             <span class="category-tag">' + catLabel + '</span>\
             <span>' + timeStr + '</span>\

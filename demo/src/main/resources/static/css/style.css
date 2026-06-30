@@ -269,16 +269,22 @@ body {
 .welcome-card h2 { font-size: 20px; margin-bottom: 6px; }
 .welcome-card p { opacity: .85; font-size: 14px; }
 
-.profile-card .field {
+.profile-card .field,
+.card .field {
     display: flex;
     justify-content: space-between;
-    padding: 12px 0;
+    align-items: center;
+    padding: 14px 0;
     border-bottom: 1px solid var(--border);
     font-size: 14px;
+    gap: 16px;
 }
-.profile-card .field:last-child { border-bottom: none; }
-.profile-card .field .key { color: var(--text-secondary); }
-.profile-card .field .val { font-weight: 600; }
+.profile-card .field:last-child,
+.card .field:last-child { border-bottom: none; }
+.profile-card .field .key,
+.card .field .key { color: var(--text-secondary); flex-shrink: 0; }
+.profile-card .field .val,
+.card .field .val { font-weight: 600; text-align: right; }
 
 .role-badge {
     display: inline-block;
