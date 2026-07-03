@@ -114,11 +114,14 @@ Router.register('/team/:id', {
                 return `
                     <a href="#/team/${team.id}/chat" class="btn btn-primary">进入群聊</a>
                     <a href="#/team/${team.id}/create-activity" class="btn btn-outline">发布队内活动</a>
+                    <a href="#/team/${team.id}/album" class="btn btn-outline">小队相册</a>
                     <button class="btn btn-outline" onclick="showRequests()">入队申请</button>
+                    <button class="btn btn-danger" onclick="handleDisbandTeam(${team.id})">解散小队</button>
                 `;
             } else if (team.userRole === 'member') {
                 return `
                     <a href="#/team/${team.id}/chat" class="btn btn-primary">进入群聊</a>
+                    <a href="#/team/${team.id}/album" class="btn btn-outline">小队相册</a>
                     <button class="btn btn-outline" onclick="handleLeaveTeam()">退出小队</button>
                 `;
             } else if (team.requestStatus === 'pending') {
@@ -315,6 +318,19 @@ Router.register('/team/:id', {
                 Router.navigate('/teams');
             } catch (e) {
                 toast(e.message || '退出失败', 'error');
+            }
+        };
+
+        // 解散小队（仅队长可见）
+        window.handleDisbandTeam = async function(tid) {
+            if (!confirm('解散后所有成员将被移除且不可恢复，确定要解散小队吗？')) return;
+
+            try {
+                await TeamAPI.disband(tid);
+                toast('小队已解散', 'success');
+                Router.navigate('/teams');
+            } catch (e) {
+                toast(e.message || '解散失败', 'error');
             }
         };
 

@@ -18,6 +18,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -32,9 +33,11 @@ public class TeamService {
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final TeamJoinRequestRepository teamJoinRequestRepository;
+    private final TeamPhotoRepository teamPhotoRepository;
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
     private final ActivityRepository activityRepository;
+    private final FileService fileService;
     private final ObjectMapper objectMapper;
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -320,7 +323,7 @@ public class TeamService {
         return result;
     }
 
-    // ==================== 小队群聊 ====================
+    // ==================== 小队群聊 (US-029) ====================
 
     /**
      * 发送小队群聊消息
@@ -418,7 +421,7 @@ public class TeamService {
                 .build();
     }
 
-    // ==================== 队内活动 ====================
+    // ==================== 队内活动 (US-029) ====================
 
     /**
      * 队长创建队内专属活动
@@ -523,6 +526,130 @@ public class TeamService {
         return activityRepository.findByTeamId(teamId, pageable);
     }
 
+    // ==================== 小队相册 (US-031) ====================
+
+    /**
+     * 获取小队相册照片列表
+     */
+    public List<TeamPhotoResponse> getAlbum(Long teamId, Long currentUserId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        // 验证用户是成员
+        if (!team.getLeaderId().equals(currentUserId)
+                && !teamMemberRepository.existsByTeamIdAndUserId(teamId, currentUserId)) {
+            throw new BusinessException("只有小队成员可以查看相册");
+        }
+
+        List<TeamPhoto> photos = teamPhotoRepository.findByTeamIdOrderByCreatedAtDesc(teamId);
+        return photos.stream()
+                .map(p -> toPhotoResponse(p, team, currentUserId))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 上传照片到小队相册
+     */
+    @Transactional
+    public TeamPhotoResponse uploadPhoto(Long teamId, Long currentUserId, String imageUrl, String description) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (team.getStatus() != Team.TeamStatus.ACTIVE) {
+            throw new BusinessException("小队已解散，无法上传照片");
+        }
+
+        // 验证用户是成员
+        if (!team.getLeaderId().equals(currentUserId)
+                && !teamMemberRepository.existsByTeamIdAndUserId(teamId, currentUserId)) {
+            throw new BusinessException("只有小队成员可以上传照片");
+        }
+
+        if (imageUrl == null || imageUrl.isBlank()) {
+            throw new BusinessException("图片URL不能为空");
+        }
+
+        // 外部URL自动下载到本地，避免防盗链/跨域问题
+        String finalUrl;
+        try {
+            finalUrl = fileService.downloadFromUrl(imageUrl);
+        } catch (IOException e) {
+            log.error("下载外部图片失败: url={}, error={}", imageUrl, e.getMessage());
+            throw new BusinessException("图片下载失败，请检查链接是否可直接访问，或使用本地上传");
+        }
+
+        TeamPhoto photo = TeamPhoto.builder()
+                .teamId(teamId)
+                .userId(currentUserId)
+                .imageUrl(finalUrl)
+                .description(description != null && !description.isBlank() ? description : null)
+                .build();
+
+        TeamPhoto saved = teamPhotoRepository.save(photo);
+        log.info("用户 {} 上传照片到小队 {}: {}", currentUserId, teamId, saved.getId());
+        return toPhotoResponse(saved, team, currentUserId);
+    }
+
+    /**
+     * 删除小队相册照片
+     */
+    @Transactional
+    public void deletePhoto(Long teamId, Long photoId, Long currentUserId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        TeamPhoto photo = teamPhotoRepository.findById(photoId)
+                .orElseThrow(() -> new BusinessException("照片不存在"));
+
+        if (!photo.getTeamId().equals(teamId)) {
+            throw new BusinessException("照片不属于该小队");
+        }
+
+        // 队长可删除任意照片，普通成员只能删除自己的照片
+        boolean isLeader = team.getLeaderId().equals(currentUserId);
+        if (!isLeader && !photo.getUserId().equals(currentUserId)) {
+            throw new BusinessException("只能删除自己上传的照片");
+        }
+
+        teamPhotoRepository.delete(photo);
+        log.info("用户 {} 删除小队 {} 的照片 {}", currentUserId, teamId, photoId);
+    }
+
+    // ==================== 解散小队 (US-031) ====================
+
+    /**
+     * 解散小队（仅队长可操作）
+     */
+    @Transactional
+    public void disbandTeam(Long teamId, Long currentUserId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (!team.getLeaderId().equals(currentUserId)) {
+            throw new BusinessException("只有队长可以解散小队");
+        }
+
+        if (team.getStatus() != Team.TeamStatus.ACTIVE) {
+            throw new BusinessException("小队已解散");
+        }
+
+        // 1. 删除所有成员关系
+        teamMemberRepository.deleteByTeamId(teamId);
+
+        // 2. 清空相册
+        teamPhotoRepository.deleteByTeamId(teamId);
+
+        // 3. 清空待处理申请
+        teamJoinRequestRepository.deleteByTeamId(teamId);
+
+        // 4. 更新小队状态
+        team.setStatus(Team.TeamStatus.DISBANDED);
+        team.setMemberCount(0);
+        teamRepository.save(team);
+
+        log.info("用户 {} 解散了小队 {} (id={})", currentUserId, team.getName(), teamId);
+    }
+
     // ==================== 私有辅助方法 ====================
 
     private TeamResponse toTeamResponse(Team team, Long currentUserId) {
@@ -594,6 +721,24 @@ public class TeamService {
                 .status(request.getStatus().name().toLowerCase())
                 .createdAt(request.getCreatedAt())
                 .processedAt(request.getProcessedAt())
+                .build();
+    }
+
+    private TeamPhotoResponse toPhotoResponse(TeamPhoto photo, Team team, Long currentUserId) {
+        User uploader = userRepository.findById(photo.getUserId()).orElse(null);
+        boolean isLeader = team.getLeaderId().equals(currentUserId);
+        boolean isOwner = photo.getUserId().equals(currentUserId);
+
+        return TeamPhotoResponse.builder()
+                .id(photo.getId())
+                .teamId(photo.getTeamId())
+                .userId(photo.getUserId())
+                .nickname(uploader != null ? uploader.getNickname() : null)
+                .avatar(uploader != null ? uploader.getAvatar() : null)
+                .imageUrl(photo.getImageUrl())
+                .description(photo.getDescription())
+                .createdAt(photo.getCreatedAt())
+                .canDelete(isLeader || isOwner)
                 .build();
     }
 

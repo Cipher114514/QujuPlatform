@@ -1604,7 +1604,7 @@ body {
     color: #64748b;
 }
 
-/* ===== 队内活动列表 ===== */
+/* ===== 队内活动列表 (US-029) ===== */
 .team-activity-item {
     display: flex;
     align-items: center;
@@ -1644,4 +1644,140 @@ body {
 }
 .team-activity-meta span {
     white-space: nowrap;
+}
+/* ===== 小队相册 (US-031) ===== */
+.team-album-page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.album-upload-section {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin: 16px 0;
+    border: 1px solid var(--border);
+}
+
+.album-upload-section h3 {
+    margin-bottom: 12px;
+    font-size: 16px;
+}
+
+.album-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.album-photo-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    border: 1px solid var(--border);
+}
+
+.album-photo-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.album-photo-card img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    display: block;
+}
+
+.album-photo-card .photo-desc {
+    padding: 8px 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ===== 照片预览模态框 ===== */
+.preview-content {
+    max-width: 600px;
+    width: 90%;
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 20px;
+    position: relative;
+}
+
+.preview-content .modal-close {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+/* ===== 上传方式切换 (US-031) ===== */
+.upload-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.upload-tab {
+    flex: 1;
+    padding: 8px 16px;
+    border: none;
+    background: var(--card);
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-secondary);
+    transition: background 0.15s;
+}
+
+.upload-tab.active {
+    background: var(--primary);
+    color: #fff;
+}
+
+.upload-tab:not(.active):hover {
+    background: #f8fafc;
+}
+
+/* ===== 文件上传区域 ===== */
+.file-upload-label {
+    display: block;
+    padding: 30px 16px;
+    text-align: center;
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 14px;
+    transition: border-color 0.15s;
+}
+
+.file-upload-label:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.photo-placeholder {
+    display: flex;
+    width: 100%;
+    height: 180px;
+    align-items: center;
+    justify-content: center;
+    background: #f1f5f9;
+    color: #94a3b8;
+    font-size: 13px;
+}
 }
