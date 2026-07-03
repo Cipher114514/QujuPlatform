@@ -102,6 +102,7 @@ Router.register('/team/:id', {
             if (team.userRole === 'leader') {
                 return `
                     <a href="#/team/${team.id}/chat" class="btn btn-primary">进入群聊</a>
+                    <a href="#/team/${team.id}/create-activity" class="btn btn-outline">发布队内活动</a>
                     <button class="btn btn-outline" onclick="showRequests()">入队申请</button>
                 `;
             } else if (team.userRole === 'member') {
