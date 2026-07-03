@@ -1603,3 +1603,45 @@ body {
     background: #f1f5f9;
     color: #64748b;
 }
+
+/* ===== 队内活动列表 ===== */
+.team-activity-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+    transition: box-shadow .2s;
+}
+.team-activity-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.team-activity-info {
+    flex: 1;
+    min-width: 0;
+}
+.team-activity-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+.team-activity-title a {
+    color: var(--text);
+    text-decoration: none;
+}
+.team-activity-title a:hover {
+    color: var(--primary);
+}
+.team-activity-meta {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.team-activity-meta span {
+    white-space: nowrap;
+}

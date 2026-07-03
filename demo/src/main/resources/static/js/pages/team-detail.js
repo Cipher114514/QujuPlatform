@@ -1,6 +1,6 @@
-﻿// ====== 小队详情页（US-027） ======
-// 功能：查看小队详情、加入/退出小队、查看成员列表、处理入队申请
-// 负责人：P5
+﻿// ====== 小队详情页（US-027/US-029） ======
+// 功能：查看小队详情、加入/退出小队、查看成员列表、处理入队申请、查看队内活动
+// 负责人：P5/P6
 
 Router.register('/team/:id', {
     title: '小队详情',
@@ -17,6 +17,7 @@ Router.register('/team/:id', {
             <!-- 标签页导航 -->
             <div class="team-tabs">
                 <button class="tab-btn active" data-tab="members">成员列表</button>
+                <button class="tab-btn" data-tab="activities" id="activitiesTab" style="display: none;">队内活动</button>
                 <button class="tab-btn" data-tab="requests" id="requestsTab" style="display: none;">入队申请</button>
             </div>
 
@@ -24,6 +25,11 @@ Router.register('/team/:id', {
             <div class="tab-content">
                 <div id="membersTab" class="tab-panel active">
                     <div id="membersList" class="members-list">
+                        <div class="loading">加载中...</div>
+                    </div>
+                </div>
+                <div id="activitiesTabPanel" class="tab-panel">
+                    <div id="activitiesList" class="activities-list">
                         <div class="loading">加载中...</div>
                     </div>
                 </div>
@@ -50,7 +56,12 @@ Router.register('/team/:id', {
                 renderTeamInfo();
                 loadMembers();
 
-                // 队长显示申请列表
+                // 成员/队长可见队内活动
+                if (teamData.userRole === 'leader' || teamData.userRole === 'member') {
+                    document.getElementById('activitiesTab').style.display = 'block';
+                }
+
+                // 队长显示申请列表（仅审核小队）
                 if (teamData.userRole === 'leader' && !teamData.isPublic) {
                     document.getElementById('requestsTab').style.display = 'block';
                     loadRequests();
@@ -206,6 +217,48 @@ Router.register('/team/:id', {
             `).join('');
         }
 
+        // 加载队内活动
+        async function loadActivities() {
+            try {
+                const res = await api('/teams/' + teamId + '/activities?page=1&size=20');
+                const pageData = res.data;
+                const activities = pageData.content || [];
+                renderActivities(activities);
+            } catch (e) {
+                document.getElementById('activitiesList').innerHTML =
+                    '<div class="error">加载失败：' + e.message + '</div>';
+            }
+        }
+
+        // 渲染队内活动列表
+        function renderActivities(activities) {
+            const container = document.getElementById('activitiesList');
+
+            if (!activities || activities.length === 0) {
+                container.innerHTML = '<div class="empty-state">暂无队内活动</div>';
+                return;
+            }
+
+            container.innerHTML = activities.map(a => {
+                var startDate = formatDate(a.startTime);
+                var startTime = formatDateTime(a.startTime);
+                return `
+                <div class="team-activity-item">
+                    <div class="team-activity-info">
+                        <h4 class="team-activity-title">
+                            <a href="#/activity/${a.id}">${escapeHtml(a.title)}</a>
+                        </h4>
+                        <p class="team-activity-meta">
+                            <span>📅 ${startDate}</span>
+                            <span>📍 ${escapeHtml(a.location || '')}</span>
+                            <span>👥 ${a.currentParticipants || 0}/${a.maxParticipants || 0}人</span>
+                        </p>
+                    </div>
+                    <span class="activity-status-badge status-${(a.status || '').toLowerCase()}">${a.status === 'ACTIVE' ? '进行中' : a.status}</span>
+                </div>`;
+            }).join('');
+        }
+
         // 处理入队申请
         window.handleRequest = async function(requestId, action) {
             const item = document.querySelector(`.request-item[data-request-id="${requestId}"]`);
@@ -286,9 +339,13 @@ Router.register('/team/:id', {
                 this.classList.add('active');
 
                 document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-                document.getElementById(tab === 'requests' ? 'requestsTabPanel' : 'membersTab').classList.add('active');
+                var panelId = tab === 'requests' ? 'requestsTabPanel'
+                            : tab === 'activities' ? 'activitiesTabPanel'
+                            : 'membersTab';
+                document.getElementById(panelId).classList.add('active');
 
                 if (tab === 'requests') loadRequests();
+                if (tab === 'activities') loadActivities();
             });
         });
 
@@ -306,6 +363,13 @@ Router.register('/team/:id', {
                    String(d.getDate()).padStart(2, '0') + ' ' +
                    String(d.getHours()).padStart(2, '0') + ':' +
                    String(d.getMinutes()).padStart(2, '0');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         // 初始加载
