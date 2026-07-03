@@ -1,11 +1,13 @@
 // ====== 地图组件 ======
 // US-014: 地图模式查看活动分布
 // 使用高德地图JS SDK 2.0
+// 注意：高德JS API Key和安全密钥已在 index.html 中配置
 
 var MapComponent = {
     mapInstance: null,
     markers: [],
     infoWindow: null,
+    isInitialized: false,
     
     /**
      * 初始化地图
@@ -20,39 +22,15 @@ var MapComponent = {
             return;
         }
         
-        // TODO: 从配置文件获取高德Key
-        var amapKey = 'YOUR_AMAP_KEY'; // 需要从后端或配置文件获取
-        
-        // 检查是否已加载高德地图SDK
+        // 检查高德SDK是否已加载
         if (typeof AMap === 'undefined') {
-            // 加载高德地图JS SDK 2.0
-            this.loadAmapScript(amapKey, function() {
-                self.createMap(containerId, options);
-            });
-        } else {
-            this.createMap(containerId, options);
+            console.error('高德地图SDK未加载，请检查 index.html 中的配置');
+            toast('地图SDK加载失败，请刷新页面重试', 'error');
+            return;
         }
-    },
-    
-    /**
-     * 加载高德地图SDK
-     */
-    loadAmapScript: function(key, callback) {
-        // TODO: 确保高德JS SDK 2.0使用最新版本
-        var script = document.createElement('script');
-        script.type = 'text/javascript';
-        script.src = 'https://webapi.amap.com/maps?v=2.0&key=' + key + '&plugin=AMap.MarkerClusterer';
-        script.onload = function() {
-            if (typeof AMap !== 'undefined') {
-                callback();
-            }
-        };
-        script.onerror = function() {
-            console.error('高德地图SDK加载失败');
-            // TODO: 显示友好的错误提示
-            toast('地图加载失败，请检查网络连接', 'error');
-        };
-        document.head.appendChild(script);
+        
+        // 创建地图
+        this.createMap(containerId, options);
     },
     
     /**
@@ -72,7 +50,7 @@ var MapComponent = {
             features: ['bg', 'road', 'building', 'point']
         };
         
-        // TODO: 尝试获取用户位置
+        // 尝试获取用户位置
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 function(position) {
@@ -80,11 +58,19 @@ var MapComponent = {
                     var lng = position.coords.longitude;
                     mapOptions.center = [lng, lat];
                     self.mapInstance = new AMap.Map(containerId, mapOptions);
+                    self.mapInstance.on('complete', function() {
+                        self.isInitialized = true;
+                        console.log('地图加载完成');
+                    });
                     self.loadActivities();
                 },
                 function(error) {
                     console.warn('获取位置失败，使用默认位置', error);
                     self.mapInstance = new AMap.Map(containerId, mapOptions);
+                    self.mapInstance.on('complete', function() {
+                        self.isInitialized = true;
+                        console.log('地图加载完成');
+                    });
                     self.loadActivities();
                 },
                 { enableHighAccuracy: true, timeout: 5000 }
@@ -92,13 +78,12 @@ var MapComponent = {
         } else {
             // 浏览器不支持定位
             this.mapInstance = new AMap.Map(containerId, mapOptions);
+            this.mapInstance.on('complete', function() {
+                self.isInitialized = true;
+                console.log('地图加载完成');
+            });
             this.loadActivities();
         }
-        
-        // 绑定地图事件
-        this.mapInstance.on('complete', function() {
-            console.log('地图加载完成');
-        });
     },
     
     /**
@@ -107,7 +92,6 @@ var MapComponent = {
     loadActivities: function() {
         var self = this;
         
-        // TODO: 从后端API获取活动数据
         api('/map/activities', { method: 'GET' })
             .then(function(res) {
                 var activities = res.data || [];
@@ -115,7 +99,6 @@ var MapComponent = {
             })
             .catch(function(err) {
                 console.error('加载活动数据失败:', err);
-                // TODO: 显示错误提示
                 toast('加载活动数据失败: ' + err.message, 'error');
             });
     },
@@ -133,7 +116,7 @@ var MapComponent = {
         }
         
         if (!activities || activities.length === 0) {
-            // TODO: 显示暂无活动的提示
+            this.showEmptyState();
             return;
         }
         
@@ -148,13 +131,7 @@ var MapComponent = {
             var marker = new AMap.Marker({
                 position: [activity.lng, activity.lat],
                 title: activity.title,
-                // TODO: 自定义标记样式，根据活动类型或状态
-                icon: new AMap.Icon({
-                    size: new AMap.Size(30, 30),
-                    image: 'https://webapi.amap.com/theme/v1.3/markers/b/mark_bs.png',
-                    imageSize: new AMap.Size(30, 30)
-                }),
-                // 存储活动数据
+                icon: self.getMarkerIcon(activity.category),
                 extData: activity
             });
             
@@ -172,6 +149,55 @@ var MapComponent = {
         if (this.markers.length > 0) {
             this.mapInstance.setFitView(this.markers);
         }
+        
+        // 更新统计信息
+        this.updateStats();
+    },
+    
+    /**
+     * 获取分类对应的标记图标和颜色
+     */
+    getMarkerIcon: function(category) {
+        // 分类与颜色的映射（与 create-activity.js 保持一致）
+        var categoryConfig = {
+            '运动健身': { color: '#4ECDC4', icon: '🏃' },
+            '户外徒步': { color: '#00CEC9', icon: '🥾' },
+            '桌游聚会': { color: '#6C5CE7', icon: '🎲' },
+            '学习交流': { color: '#A29BFE', icon: '📚' },
+            '公益活动': { color: '#00B894', icon: '🤝' },
+            '城市探索': { color: '#FFD93D', icon: '🗺️' }
+        };
+        
+        var config = categoryConfig[category] || { color: '#636E72', icon: '📌' };
+        
+        // 使用高德默认标记，设置不同颜色
+        // 注意：高德默认标记不支持直接改颜色，这里使用不同样式的标记
+        return new AMap.Icon({
+            size: new AMap.Size(30, 30),
+            image: 'https://webapi.amap.com/theme/v1.3/markers/b/mark_b.png',
+            imageSize: new AMap.Size(30, 30)
+        });
+    },
+    
+    /**
+     * 显示空状态
+     */
+    showEmptyState: function() {
+        if (!this.infoWindow) {
+            this.infoWindow = new AMap.InfoWindow({
+                content: `
+                    <div style="padding:20px;text-align:center;color:var(--text-secondary);">
+                        <div style="font-size:48px;margin-bottom:12px;">📍</div>
+                        <div style="font-size:16px;font-weight:500;">暂无附近活动</div>
+                        <div style="font-size:13px;margin-top:4px;">换个地点或稍后再来看看吧</div>
+                    </div>
+                `,
+                offset: new AMap.Pixel(0, -30),
+                autoMove: false,
+                closeWhenClickMap: true
+            });
+        }
+        this.infoWindow.open(this.mapInstance, this.mapInstance.getCenter());
     },
     
     /**
@@ -180,10 +206,8 @@ var MapComponent = {
     showInfoWindow: function(activity, position) {
         var self = this;
         
-        // 构建信息窗口内容
         var content = this.buildInfoContent(activity);
         
-        // 创建或更新信息窗口
         if (!this.infoWindow) {
             this.infoWindow = new AMap.InfoWindow({
                 content: content,
@@ -195,16 +219,19 @@ var MapComponent = {
             this.infoWindow.setContent(content);
         }
         
-        // 打开信息窗口
         this.infoWindow.open(this.mapInstance, position);
         
-        // 绑定信息窗口内的按钮事件（需要延迟执行，等待DOM渲染）
+        // 绑定信息窗口内的按钮事件
         setTimeout(function() {
             var detailBtn = document.querySelector('.info-window-detail-btn');
             if (detailBtn) {
                 detailBtn.addEventListener('click', function() {
                     var activityId = parseInt(this.dataset.id);
-                    Router.navigate('/activities/' + activityId);
+                    if (typeof Router !== 'undefined') {
+                        Router.navigate('/activities/' + activityId);
+                    } else {
+                        window.location.href = '#/activities/' + activityId;
+                    }
                     self.infoWindow.close();
                 });
             }
@@ -215,10 +242,20 @@ var MapComponent = {
      * 构建信息窗口HTML
      */
     buildInfoContent: function(activity) {
-        // TODO: 美化信息窗口样式
         var startTime = activity.startTime ? new Date(activity.startTime).toLocaleString('zh-CN') : '待定';
         var participants = activity.currentParticipants || 0;
         var maxParticipants = activity.maxParticipants || '不限';
+        
+        // 获取分类图标
+        var categoryIcons = {
+            '运动健身': '🏃',
+            '户外徒步': '🥾',
+            '桌游聚会': '🎲',
+            '学习交流': '📚',
+            '公益活动': '🤝',
+            '城市探索': '🗺️'
+        };
+        var categoryIcon = categoryIcons[activity.category] || '📌';
         
         return `
         <div style="padding:12px;min-width:220px;max-width:280px;">
@@ -232,13 +269,16 @@ var MapComponent = {
             <div style="font-size:13px;color:#666;margin-bottom:4px;">
                 🕐 ${startTime}
             </div>
+            <div style="font-size:13px;color:#666;margin-bottom:4px;">
+                ${categoryIcon} ${escapeHtml(activity.category || '未分类')}
+            </div>
             <div style="font-size:13px;color:#666;margin-bottom:8px;">
                 👥 ${participants}${maxParticipants !== '不限' ? '/' + maxParticipants : ''}人
             </div>
             ${activity.description ? `<div style="font-size:13px;color:#888;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(activity.description)}</div>` : ''}
             <button class="btn btn-primary btn-sm info-window-detail-btn" 
                     data-id="${activity.id}" 
-                    style="width:100%;padding:6px 12px;font-size:13px;">
+                    style="width:100%;padding:6px 12px;font-size:13px;cursor:pointer;border:none;border-radius:4px;">
                 查看详情 →
             </button>
         </div>
@@ -246,19 +286,14 @@ var MapComponent = {
     },
     
     /**
-     * 根据分类筛选活动
+     * 更新统计信息
      */
-    filterByCategory: function(category) {
-        // TODO: 实现按分类筛选
-        console.log('筛选分类:', category);
-    },
-    
-    /**
-     * 根据距离筛选活动
-     */
-    filterByDistance: function(distance) {
-        // TODO: 实现按距离筛选
-        console.log('筛选距离:', distance);
+    updateStats: function() {
+        var statsEl = document.getElementById('mapStats');
+        if (statsEl) {
+            var count = this.markers ? this.markers.length : 0;
+            statsEl.textContent = count > 0 ? `共 ${count} 个活动` : '暂无活动可显示';
+        }
     },
     
     /**
@@ -278,5 +313,6 @@ var MapComponent = {
         }
         this.markers = [];
         this.infoWindow = null;
+        this.isInitialized = false;
     }
 };

@@ -35,6 +35,12 @@ public class Activity {
     @Column(nullable = false)
     private String location;
 
+    @Column
+    private Double latitude;
+
+    @Column
+    private Double longitude;
+
     @Column(nullable = false)
     @Builder.Default
     private Integer maxParticipants = 20;

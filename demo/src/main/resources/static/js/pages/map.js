@@ -16,12 +16,12 @@ Router.register('/map', {
                 <button class="btn btn-outline btn-sm" id="locateBtn">📍 定位</button>
                 <select id="categoryFilter" style="padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--text);">
                     <option value="">全部</option>
-                    <option value="音乐">🎵 音乐</option>
-                    <option value="运动">🏃 运动</option>
-                    <option value="美食">🍜 美食</option>
-                    <option value="艺术">🎨 艺术</option>
-                    <option value="社交">👥 社交</option>
-                    <option value="其他">📌 其他</option>
+                    <option value="运动健身">🏃 运动健身</option>
+                    <option value="户外徒步">🥾 户外徒步</option>
+                    <option value="桌游聚会">🎲 桌游聚会</option>
+                    <option value="学习交流">📚 学习交流</option>
+                    <option value="公益活动">🤝 公益活动</option>
+                    <option value="城市探索">🗺️ 城市探索</option>
                 </select>
                 <select id="distanceFilter" style="padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--text);">
                     <option value="5000">5km内</option>
@@ -53,6 +53,23 @@ Router.register('/map', {
     init: function() {
         var self = this;
         
+        // 检查高德SDK是否已加载
+        if (typeof AMap === 'undefined') {
+            console.error('高德地图SDK未加载');
+            var container = document.getElementById('mapContainer');
+            if (container) {
+                container.innerHTML = `
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-secondary);">
+                        <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
+                        <div style="font-size:16px;font-weight:500;color:var(--danger);">地图加载失败</div>
+                        <div style="font-size:13px;margin-top:4px;">请检查网络连接后刷新页面</div>
+                        <button class="btn btn-primary btn-sm" onclick="location.reload()" style="margin-top:12px;">刷新重试</button>
+                    </div>
+                `;
+            }
+            return;
+        }
+        
         // 初始化地图组件
         this.initMap();
         
@@ -75,11 +92,6 @@ Router.register('/map', {
     },
     
     initMap: function() {
-        // TODO: 从后端获取高德Key（安全考虑，应由后端提供）
-        // 当前使用前端配置，后续应改为后端接口获取
-        var amapKey = 'YOUR_AMAP_KEY'; // 需要替换为实际Key
-        
-        // 检查容器是否存在
         var container = document.getElementById('mapContainer');
         if (!container) {
             console.error('地图容器不存在');
@@ -96,11 +108,8 @@ Router.register('/map', {
         if (typeof MapComponent !== 'undefined') {
             MapComponent.init('mapContainer', {
                 zoom: 14,
-                center: null // 自动定位
+                center: null
             });
-            
-            // 更新统计信息
-            this.updateStats();
         } else {
             console.error('MapComponent未加载');
             toast('地图组件加载失败', 'error');
@@ -111,12 +120,10 @@ Router.register('/map', {
         if (typeof MapComponent !== 'undefined' && MapComponent.refresh) {
             MapComponent.refresh();
             toast('地图已刷新');
-            this.updateStats();
         }
     },
     
     locateUser: function() {
-        // TODO: 定位到用户当前位置
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 function(position) {
@@ -139,24 +146,10 @@ Router.register('/map', {
     },
     
     filterMap: function() {
-        // TODO: 实现筛选功能
         var category = document.getElementById('categoryFilter').value;
         var distance = document.getElementById('distanceFilter').value;
         console.log('筛选条件:', { category, distance });
         toast('筛选功能开发中...');
-    },
-    
-    updateStats: function() {
-        // TODO: 更新底部统计信息
-        var statsEl = document.getElementById('mapStats');
-        if (statsEl) {
-            // 从地图组件获取标记数量
-            var count = 0;
-            if (typeof MapComponent !== 'undefined' && MapComponent.markers) {
-                count = MapComponent.markers.length;
-            }
-            statsEl.textContent = count > 0 ? `共 ${count} 个活动` : '暂无活动可显示';
-        }
     },
     
     destroy: function() {
