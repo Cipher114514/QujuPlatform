@@ -53,24 +53,7 @@ Router.register('/map', {
     init: function() {
         var self = this;
         
-        // 检查高德SDK是否已加载
-        if (typeof AMap === 'undefined') {
-            console.error('高德地图SDK未加载');
-            var container = document.getElementById('mapContainer');
-            if (container) {
-                container.innerHTML = `
-                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-secondary);">
-                        <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
-                        <div style="font-size:16px;font-weight:500;color:var(--danger);">地图加载失败</div>
-                        <div style="font-size:13px;margin-top:4px;">请检查网络连接后刷新页面</div>
-                        <button class="btn btn-primary btn-sm" onclick="location.reload()" style="margin-top:12px;">刷新重试</button>
-                    </div>
-                `;
-            }
-            return;
-        }
-        
-        // 初始化地图组件
+        // 初始化地图组件（会动态加载SDK）
         this.initMap();
         
         // 绑定事件
@@ -98,13 +81,7 @@ Router.register('/map', {
             return;
         }
         
-        // 移除加载提示
-        var loading = document.getElementById('mapLoading');
-        if (loading) {
-            loading.style.display = 'none';
-        }
-        
-        // 初始化地图
+        // 初始化地图（MapComponent内部会动态加载SDK并定位）
         if (typeof MapComponent !== 'undefined') {
             MapComponent.init('mapContainer', {
                 zoom: 14,
@@ -124,32 +101,25 @@ Router.register('/map', {
     },
     
     locateUser: function() {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                function(position) {
-                    var lat = position.coords.latitude;
-                    var lng = position.coords.longitude;
-                    if (typeof MapComponent !== 'undefined' && MapComponent.mapInstance) {
-                        MapComponent.mapInstance.setCenter([lng, lat]);
-                        MapComponent.mapInstance.setZoom(15);
-                        toast('已定位到您的位置');
-                    }
-                },
-                function(error) {
-                    toast('定位失败: ' + error.message, 'error');
-                },
-                { enableHighAccuracy: true, timeout: 10000 }
-            );
+        // 调用 MapComponent 的定位方法
+        if (typeof MapComponent !== 'undefined' && MapComponent.locateUser) {
+            MapComponent.locateUser();
         } else {
-            toast('您的浏览器不支持定位', 'error');
+            toast('定位功能不可用', 'error');
         }
     },
     
     filterMap: function() {
         var category = document.getElementById('categoryFilter').value;
-        var distance = document.getElementById('distanceFilter').value;
+        var distance = parseInt(document.getElementById('distanceFilter').value);
         console.log('筛选条件:', { category, distance });
-        toast('筛选功能开发中...');
+        
+        // 调用MapComponent的筛选方法
+        if (typeof MapComponent !== 'undefined' && MapComponent.filterActivities) {
+            MapComponent.filterActivities(category, distance);
+        } else {
+            toast('筛选功能开发中...');
+        }
     },
     
     destroy: function() {

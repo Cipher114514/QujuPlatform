@@ -5,16 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>趣聚 - 线下活动社交平台</title>
     <link rel="stylesheet" href="/css/style.css">
-    <!-- 高德地图 JS API 安全配置 -->
-    <script th:inline="javascript">
-        /*<![CDATA[*/
-        window._AMapSecurityConfig = {
-            securityJsCode: /*[[${amapSecurityCode}]]*/ ''
-        };
-        /*]]>*/
-    </script>
-    <!-- 高德地图JS SDK -->
-    <script th:src="'https://webapi.amap.com/maps?v=2.0&key=' + ${amapJsApiKey}"></script>
     <!-- SockJS + STOMP.js（WebSocket 通信基础库） -->
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@5/bundles/stomp.umd.min.js"></script>
@@ -24,6 +14,7 @@
     <script src="/js/ws-client.js"></script>
     <!-- 组件 -->
     <script src="/js/components/navbar.js"></script>
+    <script src="/js/components/MapComponent.js"></script>
     <!-- 页面模块（新人在这里追加自己的脚本） -->
     <script src="/js/pages/login.js"></script>
     <script src="/js/pages/register.js"></script>
@@ -43,6 +34,7 @@
     <script src="/js/pages/my-activities.js"></script>
     <script src="/js/pages/admin.js"></script>
     <script src="/js/pages/pending.js"></script>
+    <script src="/js/pages/map.js"></script>
 </head>
 <body>
     <!-- 导航栏：登录后自动显示 -->

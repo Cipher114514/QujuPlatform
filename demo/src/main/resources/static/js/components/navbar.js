@@ -10,6 +10,7 @@ var Navbar = {
         { path: '/ai-create', icon: '🤖', label: 'AI创建' },
         { path: '/activities', icon: '📋', label: '活动' },
         { path: '/my-activities', icon: '📁', label: '我的活动' },
+        { path: '/map',        icon: '🗺️', label: '地图' },  // <-- 新增
         { path: '/friends',    icon: '👥', label: '好友' },
         { path: '/chat',       icon: '💬', label: '聊天' },
         { path: '/discover',   icon: '🔍', label: '发现' },

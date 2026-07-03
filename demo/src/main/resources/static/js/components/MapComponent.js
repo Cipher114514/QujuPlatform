@@ -1,13 +1,101 @@
 // ====== 地图组件 ======
 // US-014: 地图模式查看活动分布
 // 使用高德地图JS SDK 2.0
-// 注意：高德JS API Key和安全密钥已在 index.html 中配置
+// 动态从后端获取高德配置并加载SDK
 
 var MapComponent = {
     mapInstance: null,
     markers: [],
     infoWindow: null,
     isInitialized: false,
+    allActivities: [],
+    currentFilters: {
+        category: '',
+        distance: 0
+    },
+    isSDKLoaded: false,
+    isLoading: false,
+    // 用户位置标记
+    userMarker: null,
+    // 是否已定位
+    isLocated: false,
+    
+    /**
+     * 从后端获取高德配置并加载SDK
+     */
+    loadAmapSDK: function() {
+        var self = this;
+        
+        return new Promise(function(resolve, reject) {
+            // 如果SDK已加载，直接返回
+            if (typeof AMap !== 'undefined') {
+                self.isSDKLoaded = true;
+                resolve();
+                return;
+            }
+            
+            // 如果正在加载中，等待加载完成
+            if (self.isLoading) {
+                var checkInterval = setInterval(function() {
+                    if (typeof AMap !== 'undefined') {
+                        clearInterval(checkInterval);
+                        self.isSDKLoaded = true;
+                        resolve();
+                    }
+                }, 100);
+                return;
+            }
+            
+            self.isLoading = true;
+            
+            // 从后端获取配置
+            api('/config/map', { method: 'GET' })
+                .then(function(res) {
+                    var config = res.data;
+                    if (!config || !config.jsApiKey) {
+                        self.isLoading = false;
+                        reject(new Error('未获取到高德地图配置'));
+                        return;
+                    }
+                    
+                    console.log('获取高德配置成功');
+                    
+                    // 设置安全密钥
+                    if (config.securityCode) {
+                        window._AMapSecurityConfig = {
+                            securityJsCode: config.securityCode
+                        };
+                        console.log('高德安全密钥已配置');
+                    }
+                    
+                    // 动态加载高德SDK
+                    var script = document.createElement('script');
+                    script.type = 'text/javascript';
+                    script.src = 'https://webapi.amap.com/maps?v=' + (config.jsVersion || '2.0') + 
+                                '&key=' + config.jsApiKey + 
+                                '&plugin=AMap.MarkerClusterer,AMap.Geolocation';
+                    script.onload = function() {
+                        self.isLoading = false;
+                        if (typeof AMap !== 'undefined') {
+                            self.isSDKLoaded = true;
+                            console.log('✅ 高德地图SDK加载成功，版本:', AMap.version);
+                            resolve();
+                        } else {
+                            reject(new Error('高德SDK加载失败'));
+                        }
+                    };
+                    script.onerror = function() {
+                        self.isLoading = false;
+                        reject(new Error('高德SDK加载失败，请检查网络连接'));
+                    };
+                    document.head.appendChild(script);
+                })
+                .catch(function(err) {
+                    self.isLoading = false;
+                    reject(err);
+                });
+        });
+    },
     
     /**
      * 初始化地图
@@ -22,15 +110,22 @@ var MapComponent = {
             return;
         }
         
-        // 检查高德SDK是否已加载
-        if (typeof AMap === 'undefined') {
-            console.error('高德地图SDK未加载，请检查 index.html 中的配置');
-            toast('地图SDK加载失败，请刷新页面重试', 'error');
-            return;
-        }
-        
-        // 创建地图
-        this.createMap(containerId, options);
+        // 先加载SDK，再创建地图
+        this.loadAmapSDK()
+            .then(function() {
+                self.createMap(containerId, options);
+            })
+            .catch(function(err) {
+                console.error('加载高德SDK失败:', err);
+                container.innerHTML = `
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-secondary);">
+                        <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
+                        <div style="font-size:16px;font-weight:500;color:var(--danger);">地图加载失败</div>
+                        <div style="font-size:13px;margin-top:4px;">${escapeHtml(err.message)}</div>
+                        <button class="btn btn-primary btn-sm" onclick="location.reload()" style="margin-top:12px;">重试</button>
+                    </div>
+                `;
+            });
     },
     
     /**
@@ -38,7 +133,12 @@ var MapComponent = {
      */
     createMap: function(containerId, options) {
         var self = this;
-        var container = document.getElementById(containerId);
+        
+        // 移除加载提示
+        var loading = document.getElementById('mapLoading');
+        if (loading) {
+            loading.style.display = 'none';
+        }
         
         // 设置默认选项
         var mapOptions = {
@@ -50,40 +150,100 @@ var MapComponent = {
             features: ['bg', 'road', 'building', 'point']
         };
         
-        // 尝试获取用户位置
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                function(position) {
-                    var lat = position.coords.latitude;
-                    var lng = position.coords.longitude;
-                    mapOptions.center = [lng, lat];
-                    self.mapInstance = new AMap.Map(containerId, mapOptions);
-                    self.mapInstance.on('complete', function() {
-                        self.isInitialized = true;
-                        console.log('地图加载完成');
-                    });
-                    self.loadActivities();
-                },
-                function(error) {
-                    console.warn('获取位置失败，使用默认位置', error);
-                    self.mapInstance = new AMap.Map(containerId, mapOptions);
-                    self.mapInstance.on('complete', function() {
-                        self.isInitialized = true;
-                        console.log('地图加载完成');
-                    });
-                    self.loadActivities();
-                },
-                { enableHighAccuracy: true, timeout: 5000 }
-            );
-        } else {
-            // 浏览器不支持定位
-            this.mapInstance = new AMap.Map(containerId, mapOptions);
-            this.mapInstance.on('complete', function() {
-                self.isInitialized = true;
-                console.log('地图加载完成');
-            });
-            this.loadActivities();
+        // 创建地图实例
+        this.mapInstance = new AMap.Map(containerId, mapOptions);
+        this.mapInstance.on('complete', function() {
+            self.isInitialized = true;
+            console.log('地图加载完成');
+        });
+        
+        // 加载活动数据
+        this.loadActivities();
+        
+        // 定位并显示用户位置
+        this.locateUser();
+    },
+    
+    /**
+     * 定位用户并显示位置图标
+     */
+    locateUser: function() {
+        var self = this;
+        
+        // 使用高德 Geolocation 插件
+        var geolocation = new AMap.Geolocation({
+            enableHighAccuracy: true,  // 是否使用高精度定位
+            timeout: 10000,            // 超时时间
+            buttonPosition: 'RB',      // 定位按钮位置
+            buttonOffset: new AMap.Pixel(10, 20),
+            zoomToAccuracy: true,      // 定位成功后自动调整地图视野
+            showMarker: true,          // 是否显示定位标记
+            showCircle: true,          // 是否显示定位精度圈
+            panToLocation: true        // 定位成功后是否自动移动到定位点
+        });
+        
+        // 将定位控件添加到地图
+        this.mapInstance.addControl(geolocation);
+        
+        // 监听定位事件
+        geolocation.getCurrentPosition(function(status, result) {
+            if (status === 'complete') {
+                self.isLocated = true;
+                console.log('定位成功:', result.position);
+                
+                // 获取定位结果
+                var position = result.position;
+                var lat = position.getLat();
+                var lng = position.getLng();
+                
+                // 创建用户位置标记（使用高德提供的标记方法）
+                self.createUserMarker(lat, lng);
+                
+                // 缩放地图到合适级别
+                self.mapInstance.setZoom(15);
+                
+                toast('已定位到您的位置');
+            } else {
+                console.warn('定位失败:', result);
+                // 定位失败，使用默认位置
+                toast('定位失败，使用默认位置', 'error');
+            }
+        });
+    },
+    
+    /**
+     * 创建用户位置标记
+     */
+    createUserMarker: function(lat, lng) {
+        // 如果已有用户标记，先移除
+        if (this.userMarker) {
+            this.mapInstance.remove(this.userMarker);
+            this.userMarker = null;
         }
+        
+        // 创建自定义用户位置标记（使用高德API）
+        this.userMarker = new AMap.Marker({
+            position: new AMap.LngLat(lng, lat),
+            title: '我的位置',
+            // 使用高德提供的用户位置图标
+            icon: new AMap.Icon({
+                size: new AMap.Size(24, 34),
+                image: 'https://webapi.amap.com/theme/v1.3/markers/b/mark_bs.png',
+                imageSize: new AMap.Size(24, 34)
+            }),
+            // 或者使用高德内置样式
+            // 也可以自定义样式，这里使用高德默认的位置标记
+            offset: new AMap.Pixel(-12, -34),
+            animation: 'AMAP_ANIMATION_BOUNCE'  // 添加弹跳动画
+        });
+        
+        // 添加到地图
+        this.mapInstance.add(this.userMarker);
+        
+        // 设置地图中心到用户位置
+        this.mapInstance.setCenter([lng, lat]);
+        
+        console.log('用户位置标记已创建: ', lat, lng);
     },
     
     /**
@@ -94,8 +254,9 @@ var MapComponent = {
         
         api('/map/activities', { method: 'GET' })
             .then(function(res) {
-                var activities = res.data || [];
-                self.renderMarkers(activities);
+                self.allActivities = res.data || [];
+                console.log('加载活动数据成功，共', self.allActivities.length, '个活动');
+                self.applyFilters();
             })
             .catch(function(err) {
                 console.error('加载活动数据失败:', err);
@@ -104,12 +265,41 @@ var MapComponent = {
     },
     
     /**
+     * 应用筛选条件并渲染
+     */
+    applyFilters: function() {
+        var filtered = this.allActivities.filter(function(activity) {
+            // 分类筛选
+            if (this.currentFilters.category && activity.category !== this.currentFilters.category) {
+                return false;
+            }
+            return true;
+        }, this);
+        
+        this.renderMarkers(filtered);
+    },
+    
+    /**
+     * 筛选活动
+     * @param {string} category - 分类
+     * @param {number} distance - 距离（米）
+     */
+    filterActivities: function(category, distance) {
+        this.currentFilters.category = category || '';
+        this.currentFilters.distance = distance || 0;
+        this.applyFilters();
+        
+        var count = this.markers ? this.markers.length : 0;
+        toast(`已筛选，共 ${count} 个活动`);
+    },
+    
+    /**
      * 渲染标记点
      */
     renderMarkers: function(activities) {
         var self = this;
         
-        // 清除已有标记
+        // 清除已有活动标记
         if (this.markers.length > 0) {
             this.mapInstance.remove(this.markers);
             this.markers = [];
@@ -117,6 +307,7 @@ var MapComponent = {
         
         if (!activities || activities.length === 0) {
             this.showEmptyState();
+            this.updateStats(0);
             return;
         }
         
@@ -128,11 +319,15 @@ var MapComponent = {
                 return;
             }
             
+            // 创建自定义活动标记
             var marker = new AMap.Marker({
-                position: [activity.lng, activity.lat],
+                position: new AMap.LngLat(activity.lng, activity.lat),
                 title: activity.title,
+                // 使用高德提供的标记图标，根据分类不同颜色
                 icon: self.getMarkerIcon(activity.category),
-                extData: activity
+                extData: activity,
+                // 添加动画效果
+                animation: 'AMAP_ANIMATION_DROP'
             });
             
             // 点击标记显示信息窗口
@@ -141,41 +336,65 @@ var MapComponent = {
                 self.showInfoWindow(data, e.target.getPosition());
             });
             
+            // 鼠标悬停显示标题
+            marker.on('mouseover', function(e) {
+                // 可以添加悬停效果
+            });
+            
             self.mapInstance.add(marker);
             self.markers.push(marker);
         });
         
-        // 自动调整视野以显示所有标记
+        console.log('渲染标记完成，共', this.markers.length, '个标记');
+        
+        // 如果有标记，自动调整视野
         if (this.markers.length > 0) {
-            this.mapInstance.setFitView(this.markers);
+            // 如果已定位，同时显示用户位置和所有活动标记
+            if (this.isLocated && this.userMarker) {
+                // 构建视野包含所有标记和用户位置
+                var allPositions = this.markers.map(function(m) {
+                    return m.getPosition();
+                });
+                allPositions.push(this.userMarker.getPosition());
+                this.mapInstance.setFitView(allPositions);
+            } else {
+                this.mapInstance.setFitView(this.markers);
+            }
         }
         
         // 更新统计信息
-        this.updateStats();
+        this.updateStats(this.markers.length);
     },
     
     /**
-     * 获取分类对应的标记图标和颜色
+     * 获取分类对应的标记图标
      */
     getMarkerIcon: function(category) {
-        // 分类与颜色的映射（与 create-activity.js 保持一致）
-        var categoryConfig = {
-            '运动健身': { color: '#4ECDC4', icon: '🏃' },
-            '户外徒步': { color: '#00CEC9', icon: '🥾' },
-            '桌游聚会': { color: '#6C5CE7', icon: '🎲' },
-            '学习交流': { color: '#A29BFE', icon: '📚' },
-            '公益活动': { color: '#00B894', icon: '🤝' },
-            '城市探索': { color: '#FFD93D', icon: '🗺️' }
+        // 分类颜色配置
+        var categoryColors = {
+            '运动健身': '#4ECDC4',
+            '户外徒步': '#00CEC9',
+            '桌游聚会': '#6C5CE7',
+            '学习交流': '#A29BFE',
+            '公益活动': '#00B894',
+            '城市探索': '#FFD93D'
         };
         
-        var config = categoryConfig[category] || { color: '#636E72', icon: '📌' };
+        var color = categoryColors[category] || '#636E72';
         
-        // 使用高德默认标记，设置不同颜色
-        // 注意：高德默认标记不支持直接改颜色，这里使用不同样式的标记
+        // 使用高德提供的自定义标记
+        // 高德支持使用 SVG 或图片作为标记图标
+        // 这里使用高德默认的标记样式，通过不同颜色区分
         return new AMap.Icon({
             size: new AMap.Size(30, 30),
+            // 使用高德提供的标记图片，不同颜色可以通过不同的图片URL实现
+            // 或者使用 SVG 生成带颜色的标记
             image: 'https://webapi.amap.com/theme/v1.3/markers/b/mark_b.png',
-            imageSize: new AMap.Size(30, 30)
+            imageSize: new AMap.Size(30, 30),
+            // 如果需要自定义颜色，可以使用 SVG
+            // 这里使用高德提供的标记图片，通过颜色参数区分
+            // 实际上高德不支持直接修改图片颜色，但我们可以使用不同的图片
+            // 或者使用 AMap.Marker 的 label 属性显示分类图标
         });
     },
     
@@ -183,21 +402,12 @@ var MapComponent = {
      * 显示空状态
      */
     showEmptyState: function() {
-        if (!this.infoWindow) {
-            this.infoWindow = new AMap.InfoWindow({
-                content: `
-                    <div style="padding:20px;text-align:center;color:var(--text-secondary);">
-                        <div style="font-size:48px;margin-bottom:12px;">📍</div>
-                        <div style="font-size:16px;font-weight:500;">暂无附近活动</div>
-                        <div style="font-size:13px;margin-top:4px;">换个地点或稍后再来看看吧</div>
-                    </div>
-                `,
-                offset: new AMap.Pixel(0, -30),
-                autoMove: false,
-                closeWhenClickMap: true
-            });
+        // 清除已有的信息窗口
+        if (this.infoWindow) {
+            this.infoWindow.close();
         }
-        this.infoWindow.open(this.mapInstance, this.mapInstance.getCenter());
+        // 不显示额外的空状态窗口，因为地图本身是空的
+        this.updateStats(0);
     },
     
     /**
@@ -278,7 +488,7 @@ var MapComponent = {
             ${activity.description ? `<div style="font-size:13px;color:#888;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(activity.description)}</div>` : ''}
             <button class="btn btn-primary btn-sm info-window-detail-btn" 
                     data-id="${activity.id}" 
-                    style="width:100%;padding:6px 12px;font-size:13px;cursor:pointer;border:none;border-radius:4px;">
+                    style="width:100%;padding:6px 12px;font-size:13px;cursor:pointer;border:none;border-radius:4px;background:var(--primary);color:#fff;">
                 查看详情 →
             </button>
         </div>
@@ -288,11 +498,19 @@ var MapComponent = {
     /**
      * 更新统计信息
      */
-    updateStats: function() {
+    updateStats: function(count) {
         var statsEl = document.getElementById('mapStats');
         if (statsEl) {
-            var count = this.markers ? this.markers.length : 0;
-            statsEl.textContent = count > 0 ? `共 ${count} 个活动` : '暂无活动可显示';
+            var total = this.allActivities ? this.allActivities.length : 0;
+            var shown = count !== undefined ? count : (this.markers ? this.markers.length : 0);
+            var locationStatus = this.isLocated ? '📍 已定位' : '📍 未定位';
+            if (total > 0 && shown < total) {
+                statsEl.textContent = `${locationStatus} | 共 ${total} 个活动，当前显示 ${shown} 个`;
+            } else if (shown > 0) {
+                statsEl.textContent = `${locationStatus} | 共 ${shown} 个活动`;
+            } else {
+                statsEl.textContent = `${locationStatus} | 暂无活动可显示`;
+            }
         }
     },
     
@@ -312,7 +530,16 @@ var MapComponent = {
             this.mapInstance = null;
         }
         this.markers = [];
+        this.userMarker = null;
         this.infoWindow = null;
         this.isInitialized = false;
+        this.isLocated = false;
+        this.allActivities = [];
+        this.isSDKLoaded = false;
+        this.isLoading = false;
+        this.currentFilters = {
+            category: '',
+            distance: 0
+        };
     }
 };
