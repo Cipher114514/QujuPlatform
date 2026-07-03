@@ -17,6 +17,7 @@ public class CommentService {
 
     private final CommentRepository commentRepository;
     private final UserRepository userRepository;
+    private final ContentFilterService contentFilterService;
 
     /** 获取活动的留言列表（含回复和用户信息） */
     public List<Map<String, Object>> getComments(Long activityId) {
@@ -62,6 +63,12 @@ public class CommentService {
         }
         if (content.length() > 200) {
             throw new BusinessException("留言内容不能超过200个字符");
+        }
+
+        // US-010: AI 敏感词过滤
+        ContentFilterService.FilterResult filter = contentFilterService.check(content.trim(), userId);
+        if (!filter.passed()) {
+            throw new BusinessException(451, "内容包含违规信息，请修改后重试");
         }
 
         Comment comment = Comment.builder()

@@ -51,6 +51,30 @@ function toast(msg, type) {
     setTimeout(function() { el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 300); }, 2500);
 }
 
+// ---------- 违规拦截弹窗（居中醒目）----------
+function showBlockModal(msg) {
+    // 移除已有弹窗
+    var old = document.getElementById('blockModal');
+    if (old) old.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'blockModal';
+    overlay.innerHTML = '\
+    <div class="block-overlay">\
+        <div class="block-dialog">\
+            <div class="block-icon">⚠️</div>\
+            <h3 style="margin:0 0 8px;font-size:18px;">内容审核未通过</h3>\
+            <p style="color:var(--text-secondary);font-size:14px;margin:0 0 20px;">' + escapeHtml(msg) + '</p>\
+            <button class="btn btn-primary" id="blockModalClose" style="width:auto;padding:10px 40px;">返回修改</button>\
+        </div>\
+    </div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('blockModalClose').addEventListener('click', function() {
+        overlay.remove();
+    });
+}
+
 // ---------- 校验工具 ----------
 var EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/;
 function isEmail(str) {
