@@ -295,7 +295,11 @@ Router.register('/activity/:id', {
             if (!parentId) document.getElementById('commentContent').value = '';
             this.loadComments(activityId);
         } catch (err) {
-            toast(err.message || '留言失败', 'error');
+            if (err.code === 451) {
+                showBlockModal(err.message);
+            } else {
+                toast(err.message || '留言失败', 'error');
+            }
         }
     },
 

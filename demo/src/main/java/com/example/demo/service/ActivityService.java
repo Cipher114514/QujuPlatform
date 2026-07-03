@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 public class ActivityService {
 
     private final ActivityRepository activityRepository;
+    private final ContentFilterService contentFilterService;
 
     /**
      * 文本创建活动（发布即上架，无需审核）
@@ -35,6 +36,12 @@ public class ActivityService {
         // 时间校验：结束时间必须晚于开始时间
         if (!req.getEndTime().isAfter(req.getStartTime())) {
             throw new BusinessException("活动结束时间必须晚于开始时间");
+        }
+
+        // US-010: AI 敏感词过滤
+        ContentFilterService.FilterResult filter = contentFilterService.check(req.getTitle() + " " + req.getDescription(), creator.getId());
+        if (!filter.passed()) {
+            throw new BusinessException(451, "内容包含违规信息，请修改后重试");
         }
 
         // 标签转为逗号分隔字符串存储

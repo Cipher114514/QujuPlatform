@@ -428,7 +428,11 @@ async function doPublishAi() {
             Router.navigate('/activity/' + res.data.id);
         }, 500);
     } catch (err) {
-        toast(err.message || '发布失败', 'error');
+        if (err.code === 451) {
+            showBlockModal(err.message);
+        } else {
+            toast(err.message || '发布失败', 'error');
+        }
     }
 }
 

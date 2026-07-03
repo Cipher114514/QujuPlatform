@@ -363,8 +363,12 @@ async function submitActivity(data) {
         clearDraft();
         Router.navigate('/activities');
     } catch (err) {
-        alertEl.textContent = err.message || '创建失败，请稍后重试';
-        alertEl.className = 'alert alert-error show';
+        if (err.code === 451) {
+            showBlockModal(err.message);
+        } else {
+            alertEl.textContent = err.message || '创建失败，请稍后重试';
+            alertEl.className = 'alert alert-error show';
+        }
         btn.disabled = false;
         btn.textContent = '发布活动';
     }
