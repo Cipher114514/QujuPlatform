@@ -28,6 +28,8 @@ public class ActivityDetailResponse {
     private String createdAt;
     private CreatorInfo creator;
     private MyRegistrationInfo myRegistration;
+    private BigDecimal avgRating;
+    private Long reviewCount;
 
     @Data
     @Builder

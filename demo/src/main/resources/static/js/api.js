@@ -145,3 +145,15 @@ var TeamAPI = {
     // 解散
     disband:       function(id) { return api('/teams/' + id + '/disband', { method:'POST' }); }
 };
+
+// ===== 活动评价与复盘模块 (P1) =====
+var ReviewAPI = {
+    create:   function(activityId, body) { return api('/activities/' + activityId + '/review', { method:'POST', body: body }); },
+    list:     function(activityId, page, size) { return api('/activities/' + activityId + '/reviews?page=' + (page||0) + '&size=' + (size||10)); },
+    avg:      function(activityId) { return api('/activities/' + activityId + '/review/avg'); },
+    retrospect: function(activityId) { return api('/activities/' + activityId + '/retrospect'); },
+    galleryList: function(activityId, page, size) { return api('/activities/' + activityId + '/retrospect/gallery?page=' + (page||0) + '&size=' + (size||12)); },
+    galleryAdd:  function(activityId, body) { return api('/activities/' + activityId + '/retrospect/gallery', { method:'POST', body: body }); },
+    galleryDel:  function(activityId, galleryId) { return api('/activities/' + activityId + '/retrospect/gallery/' + galleryId, { method:'DELETE' }); },
+    retrospectDetails: function(activityId) { return api('/activities/' + activityId + '/retrospect/details'); }
+};

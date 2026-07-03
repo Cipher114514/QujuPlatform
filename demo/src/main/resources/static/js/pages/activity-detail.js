@@ -47,7 +47,7 @@ Router.register('/activity/:id', {
             }
 
             var isCreator = curUser && Number(curUser.id) === Number(data.creatorId);
-            var isRegistered = data.myRegistration && data.myRegistration.status === 'CONFIRMED';
+            var isRegistered = data.myRegistration && (data.myRegistration.status === 'CONFIRMED' || data.myRegistration.status === 'CHECKED_IN');
             var isFull = data.currentParticipants >= data.maxParticipants;
             var statusInfo = getStatusInfo(data);
 
@@ -143,8 +143,32 @@ Router.register('/activity/:id', {
     },
 
     renderActionButton: function(isCreator, isRegistered, isFull, data) {
+        var isEnded = getStatusInfo(data).cls === 'ended';
+
+        // 评分展示（无论什么角色都能看到）
+        var ratingHtml = '';
+        if (data.avgRating !== undefined && data.avgRating !== null && data.avgRating > 0) {
+            var stars = '';
+            for (var i = 0; i < 5; i++) { stars += i < Math.round(data.avgRating) ? '★' : '☆'; }
+            ratingHtml = '<div style="font-size:13px;color:#f5a623;margin-top:8px;">' + stars + ' <span style="color:var(--text-secondary);">' + (data.avgRating || 0).toFixed(1) + ' · ' + (data.reviewCount || 0) + '条评价</span></div>';
+        }
+
+        // 已结束活动入口
+        var endedHtml = '';
+        if (isEnded) {
+            endedHtml = '<div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">';
+            if (isCreator) {
+                endedHtml += '<a href="#/activity/' + data.id + '/retrospect" class="btn btn-primary btn-sm" style="width:auto;text-decoration:none;">📊 活动复盘</a>';
+            }
+            var regStatus = data.myRegistration && data.myRegistration.status;
+            if (regStatus === 'CHECKED_IN') {
+                endedHtml += '<a href="#/activity/' + data.id + '/review" class="btn btn-outline btn-sm" style="width:auto;text-decoration:none;">⭐ 评价活动</a>';
+            }
+            endedHtml += '</div>';
+        }
+
         if (isCreator) {
-            return '<div class="card" style="text-align:center;"><p style="color:var(--text-secondary);font-size:14px;">这是你发布的活动</p></div>';
+            return '<div class="card" style="text-align:center;"><p style="color:var(--text-secondary);font-size:14px;">这是你发布的活动</p>' + ratingHtml + endedHtml + '</div>';
         }
 
         if (isRegistered) {
@@ -152,6 +176,8 @@ Router.register('/activity/:id', {
             <div class="card" style="text-align:center;">
                 <p style="color:var(--success);font-size:15px;font-weight:600;margin-bottom:12px;">✅ 您已报名</p>
                 <a href="#/my-registrations" class="btn btn-outline btn-sm" style="width:auto;text-decoration:none;">查看我的报名</a>
+                ${ratingHtml}
+                ${endedHtml}
             </div>`;
         }
 
@@ -160,25 +186,29 @@ Router.register('/activity/:id', {
             <div class="card" style="text-align:center;">
                 <p style="color:var(--danger);font-size:15px;font-weight:600;margin-bottom:12px;">🔥 活动已满员</p>
                 <a href="#/activity/${data.id}/waitlist" class="btn btn-outline btn-sm" style="width:auto;text-decoration:none;">加入等待队列</a>
+                ${ratingHtml}
             </div>`;
         }
 
         // 检查是否已过报名截止时间
         if (data.registrationDeadline) {
-            var now = Date.now();
-            var deadline = new Date(data.registrationDeadline).getTime();
-            if (now > deadline) {
-                return '<div class="card" style="text-align:center;"><p style="color:var(--text-secondary);font-size:14px;">报名已截止</p></div>';
+            var now = new Date().toISOString();
+            if (now > data.registrationDeadline) {
+                return '<div class="card" style="text-align:center;"><p style="color:var(--text-secondary);font-size:14px;">报名已截止</p>' + ratingHtml + '</div>';
             }
         }
 
         return `
         <div class="card" style="text-align:center;">
             <button class="btn btn-primary" id="registerBtn" style="width:auto;padding:14px 48px;font-size:16px;">立即报名</button>
+            ${ratingHtml}
         </div>`;
     },
 
     handleRegister: async function(activityId, data) {
+        var self = this;
+
+        // 安全须知弹窗
         var confirmed = confirm(
             '【安全须知】\n\n' +
             '1. 请在活动开始前确认活动真实性，注意人身和财产安全。\n' +
@@ -212,7 +242,7 @@ Router.register('/activity/:id', {
             var container = document.getElementById('detailContainer');
             var curUser = getCurUser();
             var isCreator = curUser && Number(curUser.id) === Number(data.creatorId);
-            var isRegistered = data.myRegistration && data.myRegistration.status === 'CONFIRMED';
+            var isRegistered = data.myRegistration && (data.myRegistration.status === 'CONFIRMED' || data.myRegistration.status === 'CHECKED_IN');
             var isFull = data.currentParticipants >= data.maxParticipants;
             var statusInfo = getStatusInfo(data);
             container.innerHTML = this.renderDetail(data, isCreator, isRegistered, isFull, statusInfo);
@@ -318,11 +348,11 @@ Router.register('/activity/:id', {
 // ====== 辅助函数 ======
 
 function getStatusInfo(data) {
-    var now = Date.now();
+    var now = new Date().toISOString();
     if (data.status === 'CANCELLED') return { label: '已取消', cls: 'ended' };
-    if (data.endTime && now > new Date(data.endTime).getTime()) return { label: '已结束', cls: 'ended' };
-    if (data.startTime && now > new Date(data.startTime).getTime()) return { label: '进行中', cls: 'active' };
-    if (data.registrationDeadline && now > new Date(data.registrationDeadline).getTime()) return { label: '报名截止', cls: 'closed' };
+    if (data.endTime && now > data.endTime) return { label: '已结束', cls: 'ended' };
+    if (data.startTime && now > data.startTime) return { label: '进行中', cls: 'active' };
+    if (data.registrationDeadline && now > data.registrationDeadline) return { label: '报名截止', cls: 'closed' };
     if (data.status === 'ACTIVE') return { label: '报名中', cls: 'open' };
     return { label: data.status, cls: 'default' };
 }

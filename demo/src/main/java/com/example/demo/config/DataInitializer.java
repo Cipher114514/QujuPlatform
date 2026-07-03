@@ -27,6 +27,8 @@ public class DataInitializer implements CommandLineRunner {
     private final ActivityTemplateRepository templateRepository;
     private final MessageRepository messageRepository;
     private final ConversationRepository conversationRepository;
+    private final ReviewRepository reviewRepository;
+    private final ActivityGalleryRepository activityGalleryRepository;
     private final PasswordEncoder passwordEncoder;
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
@@ -39,6 +41,8 @@ public class DataInitializer implements CommandLineRunner {
         teamJoinRequestRepository.deleteAllInBatch();
         teamMemberRepository.deleteAllInBatch();
         teamRepository.deleteAllInBatch();
+        reviewRepository.deleteAllInBatch();
+        activityGalleryRepository.deleteAllInBatch();
         waitlistRepository.deleteAllInBatch();
         registrationRepository.deleteAllInBatch();
         friendshipRepository.deleteAllInBatch();
@@ -225,6 +229,17 @@ public class DataInitializer implements CommandLineRunner {
                 .fee(new BigDecimal("15")).status("ACTIVE")
                 .tags("瑜伽,户外,健康").creatorId(liuyi.getId()).build());
 
+        // ==================== 3b. 已结束活动（用于测试复盘+评价） ====================
+        Activity act9 = activityRepository.save(Activity.builder()
+                .title("奥森公园晨跑打卡").description("每周三清晨奥森公园晨跑，全程5公里，配速随意。跑完一起早餐交流，健康生活从早起开始。提供矿泉水，请穿运动装备。")
+                .category("sports").location("奥林匹克森林公园南门")
+                .startTime(now.minusDays(5).withHour(7).withMinute(0))
+                .endTime(now.minusDays(5).withHour(9).withMinute(0))
+                .registrationDeadline(now.minusDays(6).withHour(20).withMinute(0))
+                .maxParticipants(20).currentParticipants(8)
+                .fee(BigDecimal.ZERO).status("ACTIVE")
+                .tags("运动,跑步,户外,健康").creatorId(zhangsan.getId()).build());
+
         // ==================== 4. 创建报名记录 ====================
         // act1 (篮球, 20上限, 8人已报): zhangsan, lisi, wangwu, zhaoliu, sunqi, wujiu, liuyi, zhouba
         register(act1.getId(), zhangsan.getId(), registrationRepository);
@@ -288,6 +303,16 @@ public class DataInitializer implements CommandLineRunner {
         register(act8.getId(), zhangsan.getId(), registrationRepository);
         register(act8.getId(), zhaoliu.getId(), registrationRepository);
 
+        // act9 (晨跑 - 已结束，8人报名，4人已签到)
+        registerCheckedIn(act9.getId(), zhangsan.getId(), registrationRepository);
+        registerCheckedIn(act9.getId(), lisi.getId(), registrationRepository);
+        registerCheckedIn(act9.getId(), wangwu.getId(), registrationRepository);
+        registerCheckedIn(act9.getId(), wujiu.getId(), registrationRepository);
+        register(act9.getId(), zhaoliu.getId(), registrationRepository);
+        register(act9.getId(), sunqi.getId(), registrationRepository);
+        register(act9.getId(), zhouba.getId(), registrationRepository);
+        register(act9.getId(), liuyi.getId(), registrationRepository);
+
         // ==================== 5. 等待队列 (满员活动) ====================
         waitlistRepository.save(WaitlistEntry.builder()
                 .activityId(act3.getId()).userId(liuyi.getId())
@@ -295,6 +320,23 @@ public class DataInitializer implements CommandLineRunner {
         waitlistRepository.save(WaitlistEntry.builder()
                 .activityId(act3.getId()).userId(sunqi.getId())
                 .queuePosition(2).status("WAITING").build());
+
+        // ==================== 5b. 已结束活动评价 ====================
+        reviewRepository.save(Review.builder()
+                .activityId(act9.getId()).userId(zhangsan.getId())
+                .rating(5).content("晨跑活动非常棒！空气清新，跑完一起吃早餐交流很有意义。").build());
+        reviewRepository.save(Review.builder()
+                .activityId(act9.getId()).userId(lisi.getId())
+                .rating(4).content("第一次参加晨跑，5公里刚好不累，组织得很专业。").build());
+        reviewRepository.save(Review.builder()
+                .activityId(act9.getId()).userId(wangwu.getId())
+                .rating(5).content("已连续参加3周了，每次都很开心，推荐给大家！").build());
+        reviewRepository.save(Review.builder()
+                .activityId(act9.getId()).userId(wujiu.getId())
+                .rating(3).content("活动挺好的，就是起得太早了哈哈。希望以后能有晚一点的时间段。").build());
+        reviewRepository.save(Review.builder()
+                .activityId(act9.getId()).userId(zhaoliu.getId())
+                .rating(4).content("不错的体验，认识了新朋友。补给水很贴心。").build());
 
         // ==================== 6. 关注关系 ====================
         follow(followRepository, zhangsan.getId(), lisi.getId());
@@ -533,7 +575,7 @@ public class DataInitializer implements CommandLineRunner {
         System.out.println("管理员: admin@platform.com / test1234");
         System.out.println("个人用户: zhangsan@test.com ~ liuyi@test.com / test1234");
         System.out.println("商家用户: zhouba@test.com, zhengshi@test.com / test1234");
-        System.out.println("活动数量: 9 | 模板数量: 6 | 小队数量: 5");
+        System.out.println("活动数量: 9 (含1个已结束) | 模板数量: 6 | 小队数量: 5 | 评价: 5");
         System.out.println("小队群聊消息: 8 条 | 队内活动: 1 个");
         System.out.println("===========================");
     }
@@ -542,6 +584,12 @@ public class DataInitializer implements CommandLineRunner {
         repo.save(Registration.builder()
                 .activityId(activityId).userId(userId)
                 .participants(1).status("CONFIRMED").build());
+    }
+
+    private void registerCheckedIn(Long activityId, Long userId, RegistrationRepository repo) {
+        repo.save(Registration.builder()
+                .activityId(activityId).userId(userId)
+                .participants(1).status("CHECKED_IN").build());
     }
 
     private void follow(FollowRepository repo, Long followerId, Long followingId) {

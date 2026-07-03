@@ -7,6 +7,7 @@ import com.example.demo.entity.User;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.ActivityRepository;
 import com.example.demo.repository.RegistrationRepository;
+import com.example.demo.repository.ReviewRepository;
 import com.example.demo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class ActivityDetailService {
     private final ActivityRepository activityRepository;
     private final RegistrationRepository registrationRepository;
     private final UserRepository userRepository;
+    private final ReviewRepository reviewRepository;
 
     public ActivityDetailResponse getDetail(Long activityId, Long currentUserId) {
         Activity activity = activityRepository.findById(activityId)
@@ -83,6 +85,8 @@ public class ActivityDetailService {
                 .createdAt(activity.getCreatedAt() != null ? activity.getCreatedAt().toString() : null)
                 .creator(creatorInfo)
                 .myRegistration(myReg)
+                .avgRating(reviewRepository.getAvgRatingByActivityId(activityId))
+                .reviewCount(reviewRepository.countByActivityId(activityId))
                 .build();
     }
 }
