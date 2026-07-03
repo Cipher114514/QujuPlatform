@@ -28,11 +28,17 @@ public class DataInitializer implements CommandLineRunner {
     private final MessageRepository messageRepository;
     private final ConversationRepository conversationRepository;
     private final PasswordEncoder passwordEncoder;
+    private final TeamRepository teamRepository;
+    private final TeamMemberRepository teamMemberRepository;
+    private final TeamJoinRequestRepository teamJoinRequestRepository;
 
     @Override
     @Transactional
     public void run(String... args) {
         // 清空旧数据（按 FK 依赖逆序，deleteInBatch 立即刷库）
+        teamJoinRequestRepository.deleteAllInBatch();
+        teamMemberRepository.deleteAllInBatch();
+        teamRepository.deleteAllInBatch();
         waitlistRepository.deleteAllInBatch();
         registrationRepository.deleteAllInBatch();
         friendshipRepository.deleteAllInBatch();
@@ -348,11 +354,127 @@ public class DataInitializer implements CommandLineRunner {
                 .fromUserId(zhouba.getId()).toUserId(wujiu.getId())
                 .status("PENDING").fromNote("一起打球吗").build());
 
+        // ==================== 9. 兴趣小队 ====================
+        // 公开小队 - 周末徒步小队（队长：赵六）
+        Team team1 = teamRepository.save(Team.builder()
+                .name("周末徒步小队")
+                .description("每周组织周边徒步活动，亲近自然")
+                .tags("[\"户外\",\"徒步\",\"运动\"]")
+                .isPublic(true)
+                .leaderId(zhaoliu.getId())
+                .memberCount(5)
+                .status(Team.TeamStatus.ACTIVE)
+                .build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team1.getId()).userId(zhaoliu.getId())
+                .role(TeamMember.MemberRole.LEADER).build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team1.getId()).userId(zhangsan.getId())
+                .role(TeamMember.MemberRole.MEMBER).build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team1.getId()).userId(lisi.getId())
+                .role(TeamMember.MemberRole.MEMBER).build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team1.getId()).userId(wangwu.getId())
+                .role(TeamMember.MemberRole.MEMBER).build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team1.getId()).userId(sunqi.getId())
+                .role(TeamMember.MemberRole.MEMBER).build());
+
+        // 公开小队 - 桌游交友圈（队长：郑十）
+        Team team2 = teamRepository.save(Team.builder()
+                .name("桌游交友圈")
+                .description("每周五晚上桌游局，新手友好")
+                .tags("[\"桌游\",\"交友\",\"聚会\"]")
+                .isPublic(true)
+                .leaderId(zhengshi.getId())
+                .memberCount(4)
+                .status(Team.TeamStatus.ACTIVE)
+                .build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team2.getId()).userId(zhengshi.getId())
+                .role(TeamMember.MemberRole.LEADER).build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team2.getId()).userId(lisi.getId())
+                .role(TeamMember.MemberRole.MEMBER).build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team2.getId()).userId(zhangsan.getId())
+                .role(TeamMember.MemberRole.MEMBER).build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team2.getId()).userId(wujiu.getId())
+                .role(TeamMember.MemberRole.MEMBER).build());
+
+        // 审核小队 - 读书分享会（队长：孙七）
+        Team team3 = teamRepository.save(Team.builder()
+                .name("读书分享会")
+                .description("每月共读一本书，分享感悟")
+                .tags("[\"学习\",\"读书\",\"交流\"]")
+                .isPublic(false)
+                .leaderId(sunqi.getId())
+                .memberCount(2)
+                .status(Team.TeamStatus.ACTIVE)
+                .build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team3.getId()).userId(sunqi.getId())
+                .role(TeamMember.MemberRole.LEADER).build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team3.getId()).userId(lisi.getId())
+                .role(TeamMember.MemberRole.MEMBER).build());
+
+        // 公开小队 - 羽毛球俱乐部（队长：张三）
+        Team team4 = teamRepository.save(Team.builder()
+                .name("羽毛球俱乐部")
+                .description("羽毛球爱好者聚集地")
+                .tags("[\"运动\",\"羽毛球\",\"健身\"]")
+                .isPublic(true)
+                .leaderId(zhangsan.getId())
+                .memberCount(3)
+                .status(Team.TeamStatus.ACTIVE)
+                .build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team4.getId()).userId(zhangsan.getId())
+                .role(TeamMember.MemberRole.LEADER).build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team4.getId()).userId(zhaoliu.getId())
+                .role(TeamMember.MemberRole.MEMBER).build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team4.getId()).userId(admin.getId())
+                .role(TeamMember.MemberRole.MEMBER).build());
+
+        // 审核小队 - 摄影交流群（队长：吴九）
+        Team team5 = teamRepository.save(Team.builder()
+                .name("摄影交流群")
+                .description("分享摄影作品，交流拍摄技巧")
+                .tags("[\"摄影\",\"艺术\",\"学习\"]")
+                .isPublic(false)
+                .leaderId(wujiu.getId())
+                .memberCount(2)
+                .status(Team.TeamStatus.ACTIVE)
+                .build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team5.getId()).userId(wujiu.getId())
+                .role(TeamMember.MemberRole.LEADER).build());
+        teamMemberRepository.save(TeamMember.builder()
+                .teamId(team5.getId()).userId(liuyi.getId())
+                .role(TeamMember.MemberRole.MEMBER).build());
+
+        // 待处理入队申请（李四申请加入摄影交流群）
+        teamJoinRequestRepository.save(TeamJoinRequest.builder()
+                .teamId(team5.getId()).userId(lisi.getId())
+                .message("我也喜欢摄影，想加入交流")
+                .status(TeamJoinRequest.RequestStatus.PENDING)
+                .build());
+        teamJoinRequestRepository.save(TeamJoinRequest.builder()
+                .teamId(team5.getId()).userId(wangwu.getId())
+                .message("新手求带")
+                .status(TeamJoinRequest.RequestStatus.PENDING)
+                .build());
+
         System.out.println("===== 测试数据初始化完成 =====");
         System.out.println("管理员: admin@platform.com / test1234");
         System.out.println("个人用户: zhangsan@test.com ~ liuyi@test.com / test1234");
         System.out.println("商家用户: zhouba@test.com, zhengshi@test.com / test1234");
-        System.out.println("活动数量: 8 | 模板数量: 6");
+        System.out.println("活动数量: 8 | 模板数量: 6 | 小队数量: 5");
         System.out.println("===========================");
     }
 

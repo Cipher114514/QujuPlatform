@@ -120,3 +120,22 @@ var FollowAPI = {
     search:      function(nickname) { return api('/users/search?nickname=' + encodeURIComponent(nickname)); },
     recommended: function(limit)  { return api('/users/recommended?limit=' + (limit || 10)); }
 };
+
+// ===== 兴趣小队模块 (P5) =====
+var TeamAPI = {
+    create:        function(body) { return api('/teams', { method:'POST', body: body }); },
+    list:          function(params) {
+        var qs = Object.keys(params).filter(function(k) { return params[k] !== undefined && params[k] !== null && params[k] !== ''; })
+            .map(function(k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
+        return api('/teams' + (qs ? '?' + qs : ''));
+    },
+    detail:        function(id) { return api('/teams/' + id); },
+    join:          function(id, message) { return api('/teams/' + id + '/join', { method:'POST', body:{ message: message } }); },
+    leave:         function(id) { return api('/teams/' + id + '/leave', { method:'DELETE' }); },
+    members:       function(id) { return api('/teams/' + id + '/members'); },
+    pendingRequests: function(id) { return api('/teams/' + id + '/requests/pending'); },
+    handleRequest: function(id, requestId, action) {
+        return api('/teams/' + id + '/requests/' + requestId, { method:'POST', body:{ action: action } });
+    },
+    myTeams:      function() { return api('/teams/me/list'); }
+};
