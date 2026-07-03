@@ -36,6 +36,8 @@ public class Registration {
 
     private LocalDateTime cancelledAt;
 
+    private LocalDateTime checkedInAt;
+
     @PrePersist
     void onCreate() {
         registeredAt = LocalDateTime.now();
