@@ -137,5 +137,11 @@ var TeamAPI = {
     handleRequest: function(id, requestId, action) {
         return api('/teams/' + id + '/requests/' + requestId, { method:'POST', body:{ action: action } });
     },
-    myTeams:      function() { return api('/teams/me/list'); }
+    myTeams:       function() { return api('/teams/me/list'); },
+    // 相册
+    album:         function(id) { return api('/teams/' + id + '/album'); },
+    uploadPhoto:   function(id, imageUrl, description) { return api('/teams/' + id + '/album', { method:'POST', body:{ imageUrl: imageUrl, description: description } }); },
+    deletePhoto:   function(id, photoId) { return api('/teams/' + id + '/album/' + photoId, { method:'DELETE' }); },
+    // 解散
+    disband:       function(id) { return api('/teams/' + id + '/disband', { method:'POST' }); }
 };

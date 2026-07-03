@@ -33,7 +33,7 @@ dependencies {
 	implementation 'com.fasterxml.jackson.core:jackson-databind'
 
 	// H2 for dev (单人快速启动,无需安装MySQL)
-	// runtimeOnly 'com.h2database:h2'
+	//  runtimeOnly 'com.h2database:h2'
 
 	// MySQL (团队协作)
 	runtimeOnly 'com.mysql:mysql-connector-j'
@@ -49,4 +49,8 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.compilerArgs += ['-parameters']
 }
