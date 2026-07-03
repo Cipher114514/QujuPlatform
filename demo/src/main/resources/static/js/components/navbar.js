@@ -12,6 +12,7 @@ var Navbar = {
         { path: '/my-activities', icon: '📁', label: '我的活动' },
         { path: '/teams',      icon: '🎯', label: '小队发现' },
         { path: '/my-teams',   icon: '👥', label: '我的小队' },
+        { path: '/map',        icon: '🗺️', label: '地图' },
         { path: '/friends',    icon: '👫', label: '好友' },
         { path: '/chat',       icon: '💬', label: '聊天' },
         { path: '/discover',   icon: '🔍', label: '发现' },

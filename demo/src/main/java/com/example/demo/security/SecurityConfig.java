@@ -37,6 +37,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/index.html", "/ws-test.html", "/css/**", "/js/**", "/favicon.ico").permitAll()
                 .requestMatchers("/auth/**", "/upload/**", "/uploads/**", "/h2-console/**", "/ws/**").permitAll()
+                .requestMatchers("/config/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/activities/**").permitAll()
                 .requestMatchers("/admin/**").hasAuthority("ADMIN")
                 .anyRequest().authenticated()
