@@ -1,0 +1,69 @@
+var Navbar = {
+    menus: [
+        { path: '/home',       icon: '🏠', label: '首页' },
+        { path: '/create-activity', icon: '➕', label: '创建' },
+        { path: '/ai-create', icon: '🤖', label: 'AI创建' },
+        { path: '/activities', icon: '📋', label: '活动' },
+        { path: '/my-activities', icon: '📁', label: '我的活动' },
+        { path: '/friends',    icon: '👥', label: '好友' },
+        { path: '/chat',       icon: '💬', label: '聊天' },
+        { path: '/discover',   icon: '🔍', label: '发现' },
+        { path: '/follows',    icon: '⭐', label: '关注' },
+        { path: '/profile',    icon: '👤', label: '资料' },
+        { path: '/admin',      icon: '⚙️', label: '管理', adminOnly: true }
+    ],
+
+    render: function() {
+        var user = getCurUser();
+        if (!user) return '';
+
+        if (user.status === 'pending') {
+            var roleMap = { user:'个人用户', business:'商家用户', admin:'管理员' };
+            return '<nav class="navbar" id="mainNav">' +
+                '<span class="brand" onclick="Router.navigate(\'/pending\')" style="cursor:pointer;">🎯 趣聚</span>' +
+                '<div class="nav-links"></div>' +
+                '<div class="user-info">' +
+                    '<span style="font-size:13px;color:#f59e0b;margin-right:8px;">⏳ 审核中 | ' + user.nickname + '</span>' +
+                    '<button class="btn btn-outline btn-sm" onclick="clearToken();Router.navigate(\'/login\');">退出</button>' +
+                '</div></nav>';
+        }
+
+        var currentPath = window.location.hash.slice(1) || '/home';
+        var navHtml = '';
+        for (var i = 0; i < this.menus.length; i++) {
+            var m = this.menus[i];
+            if (m.adminOnly && user.role !== 'admin') continue;
+            var active = (currentPath === m.path || (m.path !== '/home' && currentPath.indexOf(m.path) === 0));
+            navHtml += '<a href="#'+m.path+'" class="nav-item'+(active?' active':'')+'" onclick="Navbar.toggleMobileMenu(false);">'+
+                '<span class="nav-icon">'+m.icon+'</span>'+
+                '<span class="nav-label">'+m.label+'</span></a>';
+        }
+        var roleMap = { user:'个人用户', business:'商家用户', admin:'管理员' };
+        return `\
+        <nav class="navbar" id="mainNav">
+            <span class="brand" onclick="Router.navigate('/home');Navbar.toggleMobileMenu(false);" style="cursor:pointer;">🎯 趣聚</span>
+            <div class="nav-links" id="navLinks">${navHtml}</div>
+            <div class="user-info">
+                <span style="font-size:13px;color:var(--text-secondary);margin-right:8px;">${(roleMap[user.role]||'')+' | '+user.nickname}</span>
+                <button class="btn btn-outline btn-sm" onclick="clearToken();Router.navigate('/login');">退出</button>
+                <div class="mobile-menu-btn" onclick="Navbar.toggleMobileMenu();">
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+        </nav>`;
+    },
+
+    toggleMobileMenu: function(force) {
+        var navLinks = document.getElementById('navLinks');
+        if (!navLinks) return;
+        if (force !== undefined) {
+            if (force) {
+                navLinks.classList.add('mobile-open');
+            } else {
+                navLinks.classList.remove('mobile-open');
+            }
+        } else {
+            navLinks.classList.toggle('mobile-open');
+        }
+    }
+};
