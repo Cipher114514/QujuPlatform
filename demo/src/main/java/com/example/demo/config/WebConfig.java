@@ -1,7 +1,9 @@
 package com.example.demo.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -18,5 +20,14 @@ public class WebConfig implements WebMvcConfigurer {
         String absolutePath = Paths.get(uploadDir).toAbsolutePath().toUri().toString();
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations(absolutePath);
+    }
+
+    /**
+     * RestTemplate Bean
+     * 用于调用外部HTTP服务，如高德地图API
+     */
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
     }
 }
