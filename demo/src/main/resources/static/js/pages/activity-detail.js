@@ -144,10 +144,22 @@ Router.register('/activity/:id', {
 
     renderActionButton: function(isCreator, isRegistered, isFull, data) {
         if (isCreator) {
+            return '<div class="card" style="text-align:center;">' +
+                '<p style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">这是你发布的活动</p>' +
+                '<a href="#/activity/' + data.id + '/checkin" class="btn btn-primary btn-sm" style="width:auto;text-decoration:none;">签到核销</a>' +
+                '</div>';
             return '<div class="card" style="text-align:center;"><p style="color:var(--text-secondary);font-size:14px;">这是你发布的活动</p></div>';
         }
 
         if (isRegistered) {
+            return `
+            <div class="card" style="text-align:center;">
+                <p style="color:var(--success);font-size:15px;font-weight:600;margin-bottom:12px;">已报名</p>
+                <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">
+                    <a href="#/activity/${data.id}/qrcode" class="btn btn-primary btn-sm" style="width:auto;text-decoration:none;">出示签到码</a>
+                    <a href="#/my-registrations" class="btn btn-outline btn-sm" style="width:auto;text-decoration:none;">查看我的报名</a>
+                </div>
+            </div>`;
             return `
             <div class="card" style="text-align:center;">
                 <p style="color:var(--success);font-size:15px;font-weight:600;margin-bottom:12px;">✅ 您已报名</p>
