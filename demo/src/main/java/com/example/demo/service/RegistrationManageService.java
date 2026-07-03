@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.annotation.RedisLock;
 import com.example.demo.entity.Activity;
 import com.example.demo.entity.Registration;
 import com.example.demo.entity.User;
@@ -26,6 +27,7 @@ public class RegistrationManageService {
     private final WaitlistRepository waitlistRepository;
 
     @Transactional
+    @RedisLock(key = "activity:{activityId}")
     public void cancelRegistration(Long activityId, Long userId) {
         Registration registration = registrationRepository.findByActivityIdAndUserId(activityId, userId)
                 .orElseThrow(() -> new BusinessException(404, "未找到报名记录"));

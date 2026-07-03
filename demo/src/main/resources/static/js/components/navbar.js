@@ -23,7 +23,7 @@ var Navbar = {
 
     render: function() {
         var user = getCurUser();
-        if (!user) return '';  // 未登录不显示导航栏
+        if (!user) return '';
 
         if (user.status === 'pending') {
             var roleMap = { user:'个人用户', business:'商家用户', admin:'管理员' };
@@ -42,19 +42,36 @@ var Navbar = {
             var m = this.menus[i];
             if (m.adminOnly && user.role !== 'admin') continue;
             var active = (currentPath === m.path || (m.path !== '/home' && currentPath.indexOf(m.path) === 0));
-            navHtml += '<a href="#'+m.path+'" class="nav-item'+(active?' active':'')+'">'+
+            navHtml += '<a href="#'+m.path+'" class="nav-item'+(active?' active':'')+'" onclick="Navbar.toggleMobileMenu(false);">'+
                 '<span class="nav-icon">'+m.icon+'</span>'+
                 '<span class="nav-label">'+m.label+'</span></a>';
         }
         var roleMap = { user:'个人用户', business:'商家用户', admin:'管理员' };
         return `\
         <nav class="navbar" id="mainNav">
-            <span class="brand" onclick="Router.navigate('/home')" style="cursor:pointer;">🎯 趣聚</span>
-            <div class="nav-links">${navHtml}</div>
+            <span class="brand" onclick="Router.navigate('/home');Navbar.toggleMobileMenu(false);" style="cursor:pointer;">🎯 趣聚</span>
+            <div class="nav-links" id="navLinks">${navHtml}</div>
             <div class="user-info">
                 <span style="font-size:13px;color:var(--text-secondary);margin-right:8px;">${(roleMap[user.role]||'')+' | '+user.nickname}</span>
                 <button class="btn btn-outline btn-sm" onclick="clearToken();Router.navigate('/login');">退出</button>
+                <div class="mobile-menu-btn" onclick="Navbar.toggleMobileMenu();">
+                    <span></span><span></span><span></span>
+                </div>
             </div>
         </nav>`;
+    },
+
+    toggleMobileMenu: function(force) {
+        var navLinks = document.getElementById('navLinks');
+        if (!navLinks) return;
+        if (force !== undefined) {
+            if (force) {
+                navLinks.classList.add('mobile-open');
+            } else {
+                navLinks.classList.remove('mobile-open');
+            }
+        } else {
+            navLinks.classList.toggle('mobile-open');
+        }
     }
 };

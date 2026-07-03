@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.annotation.RedisLock;
 import com.example.demo.entity.Activity;
 import com.example.demo.entity.Registration;
 import com.example.demo.entity.WaitlistEntry;
@@ -22,6 +23,7 @@ public class WaitlistService {
     private final RegistrationRepository registrationRepository;
 
     @Transactional
+    @RedisLock(key = "activity:{activityId}")
     public WaitlistEntry joinWaitlist(Long activityId, Long userId) {
         Activity activity = activityRepository.findById(activityId)
                 .orElseThrow(() -> new BusinessException(404, "活动不存在"));
