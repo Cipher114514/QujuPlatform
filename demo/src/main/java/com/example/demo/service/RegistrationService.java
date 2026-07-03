@@ -90,6 +90,7 @@ public class RegistrationService {
 
         reg.setStatus("CONFIRMED");
         reg.setCancelledAt(null);
+        reg.setCheckedInAt(null);
         return registrationRepository.save(reg);
     }
 }
