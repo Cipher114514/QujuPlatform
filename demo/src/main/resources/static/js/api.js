@@ -27,7 +27,13 @@ async function api(path, options = {}) {
              : options.body ? JSON.stringify(options.body) : undefined
     });
 
-    const data = await res.json();
+    const text = await res.text();
+    var data;
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        data = { code: res.status, message: text || '服务器无响应' };
+    }
     if (!res.ok && data.code !== 200) {
         if (data.code === 401) { clearToken(); Router.navigate('/login'); }
         throw { code: data.code || res.status, message: data.message || '请求失败' };
@@ -67,7 +73,58 @@ var UploadAPI = {
 
 // ===== 以下由各模块开发者按需追加 =====
 var ActivityAPI = {
-    create: function(body) { return api('/activities', { method: 'POST', body: body }); }
+    create: function(body) { return api('/activities', { method: 'POST', body: body }); },
+    list:   function(params) {
+        var qs = Object.keys(params).filter(function(k) { return params[k] !== undefined && params[k] !== null && params[k] !== ''; })
+            .map(function(k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
+        return api('/activities' + (qs ? '?' + qs : ''));
+    }
 };
 // var FriendAPI   = { ... };
-// var MessageAPI  = { ... };
+
+// ===== 即时通讯模块 (P7) =====
+var MessageAPI = {
+    conversations: function () {
+        return api('/messages/conversations');
+    },
+    messages: function (conversationId, page, size) {
+        var params = '?page=' + (page || 1) + '&size=' + (size || 20);
+        return api('/messages/conversations/' + conversationId + params);
+    },
+    send: function (targetUserId, content) {
+        return api('/messages', {
+            method: 'POST',
+            body: { targetUserId: targetUserId, content: content }
+        });
+    },
+    markRead: function (conversationId) {
+        return api('/messages/conversations/' + conversationId + '/read', {
+            method: 'PUT'
+        });
+    },
+    newMessages: function (conversationId, since) {
+        return api('/messages/conversations/' + conversationId + '/new?since=' + encodeURIComponent(since));
+    }
+};
+
+// ===== 关注与发现模块 (P9) =====
+var FollowAPI = {
+    follow:      function(userId) { return api('/follow', { method:'POST', body:{ userId: userId } }); },
+    unfollow:    function(userId) { return api('/follow/' + userId, { method:'DELETE' }); },
+    following:   function()       { return api('/follow/following'); },
+    followers:   function()       { return api('/follow/followers'); },
+    search:      function(nickname) { return api('/users/search?nickname=' + encodeURIComponent(nickname)); },
+    recommended: function(limit)  { return api('/users/recommended?limit=' + (limit || 10)); }
+};
+
+// ===== 活动评价与复盘模块 (P1) =====
+var ReviewAPI = {
+    create:   function(activityId, body) { return api('/activities/' + activityId + '/review', { method:'POST', body: body }); },
+    list:     function(activityId, page, size) { return api('/activities/' + activityId + '/reviews?page=' + (page||0) + '&size=' + (size||10)); },
+    avg:      function(activityId) { return api('/activities/' + activityId + '/review/avg'); },
+    retrospect: function(activityId) { return api('/activities/' + activityId + '/retrospect'); },
+    galleryList: function(activityId, page, size) { return api('/activities/' + activityId + '/retrospect/gallery?page=' + (page||0) + '&size=' + (size||12)); },
+    galleryAdd:  function(activityId, body) { return api('/activities/' + activityId + '/retrospect/gallery', { method:'POST', body: body }); },
+    galleryDel:  function(activityId, galleryId) { return api('/activities/' + activityId + '/retrospect/gallery/' + galleryId, { method:'DELETE' }); },
+    retrospectDetails: function(activityId) { return api('/activities/' + activityId + '/retrospect/details'); }
+};
