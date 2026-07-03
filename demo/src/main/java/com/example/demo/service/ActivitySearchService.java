@@ -67,6 +67,9 @@ public class ActivitySearchService {
         return (root, query, cb) -> {
             Predicate predicate = cb.equal(root.get("status"), "ACTIVE");
 
+            // 排除队内专属活动（仅公开活动出现在信息流中）
+            predicate = cb.and(predicate, cb.isNull(root.get("teamId")));
+
             if (StringUtils.hasText(keyword)) {
                 String like = "%" + keyword.trim().toLowerCase() + "%";
                 Predicate titleLike = cb.like(cb.lower(root.get("title")), like);

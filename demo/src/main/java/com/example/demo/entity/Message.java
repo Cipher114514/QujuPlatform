@@ -19,6 +19,9 @@ public class Message {
     @Column(nullable = false)
     private Long conversationId;
 
+    /** 小队群聊ID（群聊消息时使用，私聊时为null） */
+    private Long teamId;
+
     @Column(nullable = false)
     private Long senderId;
 

@@ -1,26 +1,24 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.*;
-import com.example.demo.entity.Team;
-import com.example.demo.entity.TeamJoinRequest;
-import com.example.demo.entity.TeamMember;
-import com.example.demo.entity.User;
+import com.example.demo.entity.*;
 import com.example.demo.exception.BusinessException;
-import com.example.demo.repository.TeamJoinRequestRepository;
-import com.example.demo.repository.TeamMemberRepository;
-import com.example.demo.repository.TeamRepository;
-import com.example.demo.repository.UserRepository;
+import com.example.demo.repository.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Builder;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +33,10 @@ public class TeamService {
     private final TeamMemberRepository teamMemberRepository;
     private final TeamJoinRequestRepository teamJoinRequestRepository;
     private final UserRepository userRepository;
+    private final MessageRepository messageRepository;
+    private final ActivityRepository activityRepository;
     private final ObjectMapper objectMapper;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * 创建小队
@@ -319,6 +320,209 @@ public class TeamService {
         return result;
     }
 
+    // ==================== 小队群聊 ====================
+
+    /**
+     * 发送小队群聊消息
+     */
+    @Transactional
+    public TeamMessageItem sendTeamMessage(Long teamId, Long senderId, String content) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (team.getStatus() != Team.TeamStatus.ACTIVE) {
+            throw new BusinessException("小队已解散");
+        }
+
+        // 验证发送者是小队成员
+        if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, senderId)) {
+            throw new BusinessException("您不是该小队成员");
+        }
+
+        if (content == null || content.isBlank()) {
+            throw new BusinessException("消息内容不能为空");
+        }
+
+        if (content.length() > 2000) {
+            throw new BusinessException("消息内容不能超过2000字");
+        }
+
+        User sender = userRepository.findById(senderId).orElse(null);
+
+        Message msg = Message.builder()
+                .conversationId(0L)  // 群聊不使用conversationId
+                .teamId(teamId)
+                .senderId(senderId)
+                .content(content)
+                .type("TEXT")
+                .status("DELIVERED")
+                .build();
+        msg = messageRepository.save(msg);
+
+        TeamMessageItem result = TeamMessageItem.builder()
+                .id(msg.getId())
+                .teamId(teamId)
+                .senderId(senderId)
+                .senderNickname(sender != null ? sender.getNickname() : null)
+                .senderAvatar(sender != null ? sender.getAvatar() : null)
+                .content(msg.getContent())
+                .type(msg.getType())
+                .sentAt(msg.getSentAt())
+                .build();
+
+        // WebSocket 广播给所有小队成员
+        messagingTemplate.convertAndSend("/topic/team/" + teamId, result);
+        log.info("小队群聊广播: teamId={}, senderId={}, msgId={}", teamId, senderId, msg.getId());
+
+        return result;
+    }
+
+    /**
+     * 获取小队群聊消息历史（分页）
+     */
+    public TeamMessagePage getTeamMessages(Long teamId, Long userId, int page, int size) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        // 验证用户是小队成员
+        if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
+            throw new BusinessException("您不是该小队成员");
+        }
+
+        Pageable pageable = PageRequest.of(page - 1, size);
+        Page<Message> msgPage = messageRepository.findByTeamIdOrderBySentAtDesc(teamId, pageable);
+
+        List<TeamMessageItem> list = new ArrayList<>();
+        for (Message m : msgPage.getContent()) {
+            User sender = userRepository.findById(m.getSenderId()).orElse(null);
+            list.add(TeamMessageItem.builder()
+                    .id(m.getId())
+                    .teamId(teamId)
+                    .senderId(m.getSenderId())
+                    .senderNickname(sender != null ? sender.getNickname() : null)
+                    .senderAvatar(sender != null ? sender.getAvatar() : null)
+                    .content(m.getContent())
+                    .type(m.getType())
+                    .sentAt(m.getSentAt())
+                    .build());
+        }
+
+        return TeamMessagePage.builder()
+                .list(list)
+                .pagination(TeamPagination.builder()
+                        .page(page)
+                        .size(size)
+                        .total(msgPage.getTotalElements())
+                        .pages(msgPage.getTotalPages())
+                        .build())
+                .build();
+    }
+
+    // ==================== 队内活动 ====================
+
+    /**
+     * 队长创建队内专属活动
+     */
+    @Transactional
+    public Activity createTeamActivity(Long teamId, Long creatorId, CreateActivityRequest req) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (team.getStatus() != Team.TeamStatus.ACTIVE) {
+            throw new BusinessException("小队已解散");
+        }
+
+        // 仅队长可以创建队内活动
+        if (!team.getLeaderId().equals(creatorId)) {
+            throw new BusinessException("只有队长可以创建队内活动");
+        }
+
+        // 时间校验
+        if (!req.getStartTime().isAfter(LocalDateTime.now())) {
+            throw new BusinessException("活动开始时间必须晚于当前系统时间");
+        }
+        if (!req.getRegistrationDeadline().isBefore(req.getStartTime())) {
+            throw new BusinessException("报名截止时间必须早于活动开始时间");
+        }
+        if (!req.getEndTime().isAfter(req.getStartTime())) {
+            throw new BusinessException("活动结束时间必须晚于开始时间");
+        }
+
+        String tagsStr = null;
+        if (req.getTags() != null && !req.getTags().isEmpty()) {
+            tagsStr = String.join(",", req.getTags());
+        }
+
+        String imagesStr = null;
+        if (req.getImages() != null && !req.getImages().isEmpty()) {
+            imagesStr = String.join(",", req.getImages());
+        }
+
+        Activity activity = Activity.builder()
+                .title(req.getTitle())
+                .description(req.getDescription())
+                .category(req.getCategory())
+                .startTime(req.getStartTime())
+                .endTime(req.getEndTime())
+                .location(req.getLocation())
+                .maxParticipants(req.getMaxParticipants())
+                .currentParticipants(0)
+                .fee(req.getFee() != null ? req.getFee() : BigDecimal.ZERO)
+                .status("ACTIVE")
+                .tags(tagsStr)
+                .images(imagesStr)
+                .coverImage(req.getCoverImage())
+                .creatorId(creatorId)
+                .teamId(teamId)
+                .registrationDeadline(req.getRegistrationDeadline())
+                .build();
+
+        Activity saved = activityRepository.save(activity);
+
+        // 群聊广播通知
+        User creator = userRepository.findById(creatorId).orElse(null);
+        String notice = (creator != null ? creator.getNickname() : "队长") + " 发布了队内活动：「" + saved.getTitle() + "」";
+        Message noticeMsg = Message.builder()
+                .conversationId(0L)
+                .teamId(teamId)
+                .senderId(creatorId)
+                .content(notice)
+                .type("SYSTEM")
+                .status("DELIVERED")
+                .build();
+        messageRepository.save(noticeMsg);
+        messagingTemplate.convertAndSend("/topic/team/" + teamId,
+                TeamMessageItem.builder()
+                        .id(noticeMsg.getId())
+                        .teamId(teamId)
+                        .senderId(creatorId)
+                        .senderNickname(creator != null ? creator.getNickname() : null)
+                        .senderAvatar(creator != null ? creator.getAvatar() : null)
+                        .content(notice)
+                        .type("SYSTEM")
+                        .sentAt(noticeMsg.getSentAt())
+                        .build());
+
+        log.info("队长 {} 创建队内活动: teamId={}, activityId={}", creatorId, teamId, saved.getId());
+        return saved;
+    }
+
+    /**
+     * 获取队内活动列表
+     */
+    public Page<Activity> getTeamActivities(Long teamId, Long userId, int page, int size) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        // 验证用户是小队成员
+        if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
+            throw new BusinessException("您不是该小队成员");
+        }
+
+        Pageable pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return activityRepository.findByTeamId(teamId, pageable);
+    }
+
     // ==================== 私有辅助方法 ====================
 
     private TeamResponse toTeamResponse(Team team, Long currentUserId) {
@@ -391,5 +595,33 @@ public class TeamService {
                 .createdAt(request.getCreatedAt())
                 .processedAt(request.getProcessedAt())
                 .build();
+    }
+
+    // ===================== 内部响应类型 =====================
+
+    @Data @Builder
+    public static class TeamMessageItem {
+        private Long id;
+        private Long teamId;
+        private Long senderId;
+        private String senderNickname;
+        private String senderAvatar;
+        private String content;
+        private String type;
+        private LocalDateTime sentAt;
+    }
+
+    @Data @Builder
+    public static class TeamMessagePage {
+        private List<TeamMessageItem> list;
+        private TeamPagination pagination;
+    }
+
+    @Data @Builder
+    public static class TeamPagination {
+        private int page;
+        private int size;
+        private long total;
+        private int pages;
     }
 }

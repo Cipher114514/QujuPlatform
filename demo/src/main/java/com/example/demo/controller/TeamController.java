@@ -5,6 +5,7 @@ import com.example.demo.dto.*;
 import com.example.demo.entity.User;
 import com.example.demo.service.TeamService;
 import jakarta.validation.Valid;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -132,5 +133,64 @@ public class TeamController {
         log.info("获取我的小队列表: userId={}", currentUser.getId());
         List<TeamResponse> teams = teamService.getMyTeams(currentUser.getId());
         return Result.ok(teams);
+    }
+
+    // ==================== 小队群聊 ====================
+
+    /**
+     * 获取小队群聊消息历史
+     */
+    @GetMapping("/{id}/messages")
+    public Result<TeamService.TeamMessagePage> getTeamMessages(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        log.info("获取小队群聊消息: teamId={}, page={}", id, page);
+        return Result.ok(teamService.getTeamMessages(id, currentUser.getId(), page, size));
+    }
+
+    /**
+     * 发送小队群聊消息
+     */
+    @PostMapping("/{id}/messages")
+    public Result<TeamService.TeamMessageItem> sendTeamMessage(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long id,
+            @RequestBody SendMessageRequest req) {
+        log.info("发送小队群聊消息: teamId={}, senderId={}", id, currentUser.getId());
+        return Result.ok(teamService.sendTeamMessage(id, currentUser.getId(), req.getContent()));
+    }
+
+    // ==================== 队内活动 ====================
+
+    /**
+     * 创建队内专属活动（仅队长）
+     */
+    @PostMapping("/{id}/activities")
+    public Result<?> createTeamActivity(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long id,
+            @Valid @RequestBody CreateActivityRequest req) {
+        log.info("创建队内活动: teamId={}, creatorId={}", id, currentUser.getId());
+        return Result.ok("队内活动创建成功", teamService.createTeamActivity(id, currentUser.getId(), req));
+    }
+
+    /**
+     * 获取队内活动列表（仅成员）
+     */
+    @GetMapping("/{id}/activities")
+    public Result<Page<com.example.demo.entity.Activity>> getTeamActivities(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("获取队内活动列表: teamId={}, page={}", id, page);
+        return Result.ok(teamService.getTeamActivities(id, currentUser.getId(), page, size));
+    }
+
+    @Data
+    static class SendMessageRequest {
+        private String content;
     }
 }

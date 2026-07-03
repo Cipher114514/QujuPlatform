@@ -24,4 +24,11 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     @Query("SELECT m FROM Message m WHERE m.conversationId = :convId AND m.sentAt > :since ORDER BY m.sentAt ASC")
     List<Message> findNewMessages(@Param("convId") Long convId, @Param("since") LocalDateTime since);
+
+    /** 小队群聊消息历史（分页，倒序） */
+    Page<Message> findByTeamIdOrderBySentAtDesc(Long teamId, Pageable pageable);
+
+    /** 小队群聊新消息轮询 */
+    @Query("SELECT m FROM Message m WHERE m.teamId = :teamId AND m.sentAt > :since ORDER BY m.sentAt ASC")
+    List<Message> findNewTeamMessages(@Param("teamId") Long teamId, @Param("since") LocalDateTime since);
 }

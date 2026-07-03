@@ -574,6 +574,29 @@ body {
     color: var(--text-secondary);
 }
 
+/* ===== 群聊专用样式 ===== */
+.msg-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin: 0 8px;
+    object-fit: cover;
+    background: var(--border);
+}
+
+.msg-content-wrap {
+    display: flex;
+    flex-direction: column;
+}
+
+.msg-sender-name {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+    padding-left: 4px;
+}
+
 /* ===== AI创建 + 我的活动 (m2) ===== */
 .form-input {
     width: 100%;

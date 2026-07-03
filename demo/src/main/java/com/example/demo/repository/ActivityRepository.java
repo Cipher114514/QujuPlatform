@@ -2,6 +2,8 @@ package com.example.demo.repository;
 
 import com.example.demo.entity.Activity;
 import jakarta.transaction.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -26,4 +28,7 @@ public interface ActivityRepository extends JpaRepository<Activity, Long>, JpaSp
 
     /** US-008: 按创建者ID和状态查询草稿 */
     List<Activity> findByCreatorIdAndStatusOrderByCreatedAtDesc(Long creatorId, String status);
+
+    /** 队内活动列表（分页） */
+    Page<Activity> findByTeamId(Long teamId, Pageable pageable);
 }

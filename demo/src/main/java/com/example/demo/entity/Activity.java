@@ -63,6 +63,9 @@ public class Activity {
     @Column(nullable = false)
     private Long creatorId;
 
+    /** 关联小队ID（队内专属活动，公开活动为null） */
+    private Long teamId;
+
     private LocalDateTime registrationDeadline;
 
     @Column(nullable = false, updatable = false)

@@ -470,11 +470,71 @@ public class DataInitializer implements CommandLineRunner {
                 .status(TeamJoinRequest.RequestStatus.PENDING)
                 .build());
 
+        // ==================== 10. 小队群聊测试消息 ====================
+        // 周末徒步小队 (team1) 的群聊消息
+        messageRepository.save(Message.builder()
+                .conversationId(0L).teamId(team1.getId())
+                .senderId(zhaoliu.getId())
+                .content("欢迎加入周末徒步小队！每周末我们都会组织周边徒步活动~")
+                .type("TEXT").status("DELIVERED").build());
+        messageRepository.save(Message.builder()
+                .conversationId(0L).teamId(team1.getId())
+                .senderId(zhangsan.getId())
+                .content("期待！这周末去哪？")
+                .type("TEXT").status("DELIVERED").build());
+        messageRepository.save(Message.builder()
+                .conversationId(0L).teamId(team1.getId())
+                .senderId(zhaoliu.getId())
+                .content("这周六去门头沟灵山，全程12公里，适合有基础的朋友")
+                .type("TEXT").status("DELIVERED").build());
+        messageRepository.save(Message.builder()
+                .conversationId(0L).teamId(team1.getId())
+                .senderId(lisi.getId())
+                .content("我报名！装备都准备好了")
+                .type("TEXT").status("DELIVERED").build());
+        messageRepository.save(Message.builder()
+                .conversationId(0L).teamId(team1.getId())
+                .senderId(wangwu.getId())
+                .content("刚发了队内活动，大家去看看")
+                .type("TEXT").status("DELIVERED").build());
+
+        // 桌游交友圈 (team2) 的群聊消息
+        messageRepository.save(Message.builder()
+                .conversationId(0L).teamId(team2.getId())
+                .senderId(zhengshi.getId())
+                .content("周五晚上7点桌游局，有人来吗？")
+                .type("TEXT").status("DELIVERED").build());
+        messageRepository.save(Message.builder()
+                .conversationId(0L).teamId(team2.getId())
+                .senderId(lisi.getId())
+                .content("我来！带两个朋友可以吗")
+                .type("TEXT").status("DELIVERED").build());
+        messageRepository.save(Message.builder()
+                .conversationId(0L).teamId(team2.getId())
+                .senderId(zhengshi.getId())
+                .content("必须欢迎！人越多越好玩")
+                .type("TEXT").status("DELIVERED").build());
+
+        // 队内活动示例：徒步小队发布一个队内活动
+        activityRepository.save(Activity.builder()
+                .title("灵山徒步之旅（队内）")
+                .description("小队专属灵山徒步活动，仅限队员报名。全程约12公里，中等强度。请穿登山鞋、自带午餐和足够饮水。")
+                .category("hiking")
+                .location("门头沟灵山风景区")
+                .startTime(now.plusDays(10).withHour(7).withMinute(0))
+                .endTime(now.plusDays(10).withHour(17).withMinute(0))
+                .registrationDeadline(now.plusDays(8).withHour(18).withMinute(0))
+                .maxParticipants(15).currentParticipants(0)
+                .fee(BigDecimal.ZERO).status("ACTIVE")
+                .tags("户外,徒步,队内").creatorId(zhaoliu.getId())
+                .teamId(team1.getId()).build());
+
         System.out.println("===== 测试数据初始化完成 =====");
         System.out.println("管理员: admin@platform.com / test1234");
         System.out.println("个人用户: zhangsan@test.com ~ liuyi@test.com / test1234");
         System.out.println("商家用户: zhouba@test.com, zhengshi@test.com / test1234");
-        System.out.println("活动数量: 8 | 模板数量: 6 | 小队数量: 5");
+        System.out.println("活动数量: 9 | 模板数量: 6 | 小队数量: 5");
+        System.out.println("小队群聊消息: 8 条 | 队内活动: 1 个");
         System.out.println("===========================");
     }
 
