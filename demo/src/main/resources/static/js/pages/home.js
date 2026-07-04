@@ -11,29 +11,14 @@ Router.register('/home', {
                 <h2>你好，' + (u ? u.nickname : '') + '</h2>\
                 <p id="homeSub">欢迎回到趣聚平台</p>\
             </div>\
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;" id="homeStats">\
-                <div class="card" style="text-align:center;padding:18px;">\
-                    <div style="font-size:28px;font-weight:700;color:var(--primary);" id="statActivities">-</div>\
-                    <div style="font-size:12px;color:var(--text-secondary);">可报名活动</div>\
-                </div>\
-                <div class="card" style="text-align:center;padding:18px;">\
-                    <div style="font-size:28px;font-weight:700;color:var(--primary);" id="statFriends">-</div>\
-                    <div style="font-size:12px;color:var(--text-secondary);">我的好友</div>\
-                </div>\
-                <div class="card" style="text-align:center;padding:18px;">\
-                    <div style="font-size:28px;font-weight:700;color:var(--primary);" id="statRegs">-</div>\
-                    <div style="font-size:12px;color:var(--text-secondary);">已报名活动</div>\
-                </div>\
-                <div class="card" style="text-align:center;padding:18px;">\
-                    <div style="font-size:28px;font-weight:700;color:var(--primary);" id="statCreated">-</div>\
-                    <div style="font-size:12px;color:var(--text-secondary);">我创建的活动</div>\
-                </div>\
+            <div class="home-tabs">\
+                <div class="home-tab active" data-tab="activities" onclick="switchHomeTab(\'activities\')">推荐活动</div>\
+                <div class="home-tab" data-tab="teams" onclick="switchHomeTab(\'teams\')">推荐小队</div>\
             </div>\
-            <div style="margin-bottom:12px;font-size:15px;font-weight:600;color:var(--text);">推荐活动</div>\
-        <div id="homeActivityFeed" style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">\
-            <div class="loading">加载中...</div>\
-        </div>\
-        <div style="margin-bottom:12px;font-size:15px;font-weight:600;color:var(--text);">快捷入口</div>\
+            <div id="homeFeedWrapper" class="home-feed-list">\
+                <div class="loading">加载中...</div>\
+            </div>\
+            <div style="margin-bottom:12px;font-size:15px;font-weight:600;color:var(--text);">快捷入口</div>\
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">\
                 <div class="card" style="text-align:center;cursor:pointer;padding:18px;" onclick="Router.navigate(\'/activities\')">\
                     <div style="font-size:28px;margin-bottom:6px;">📋</div>\
@@ -60,73 +45,144 @@ Router.register('/home', {
     },
 
     init: function () {
-        loadHomeStats();
+        homeTabData = {};
+        homeActiveTab = 'activities';
         loadHomeFeed();
     }
 });
 
-async function loadHomeStats() {
-    try {
-        var results = await Promise.allSettled([
-            api('/activities?size=1'),
-            api('/friends'),
-            api('/users/me/registrations'),
-            api('/activities/my')
-        ]);
+// 首页 Tab 状态
+var homeActiveTab = 'activities';
+var homeTabData = {};
 
-        var actCount = results[0].status === 'fulfilled' ? (results[0].value.data.totalElements || 0) : 0;
-        var friends = results[1].status === 'fulfilled' ? (results[1].value.data || []) : [];
-        var regs = results[2].status === 'fulfilled' ? (results[2].value.data || []) : [];
-        var myActs = results[3].status === 'fulfilled' ? (results[3].value.data || []) : [];
+function switchHomeTab(tab) {
+    if (homeActiveTab === tab) return;
+    homeActiveTab = tab;
 
-        setStat('statActivities', actCount);
-        setStat('statFriends', friends.length);
-        setStat('statRegs', regs.length);
-        setStat('statCreated', Array.isArray(myActs) ? myActs.length : 0);
-    } catch (e) {
-        setStat('statActivities', '-');
-        setStat('statFriends', '-');
-        setStat('statRegs', '-');
-        setStat('statCreated', '-');
+    var tabs = document.querySelectorAll('.home-tab');
+    tabs.forEach(function(t) {
+        t.classList.toggle('active', t.getAttribute('data-tab') === tab);
+    });
+
+    if (homeTabData[tab]) {
+        renderHomeFeed(homeTabData[tab], tab);
+    } else {
+        loadHomeFeed();
     }
-}
-
-function setStat(id, val) {
-    var el = document.getElementById(id);
-    if (el) el.textContent = val;
 }
 
 async function loadHomeFeed() {
-    var container = document.getElementById('homeActivityFeed');
+    var container = document.getElementById('homeFeedWrapper');
     if (!container) return;
 
+    container.innerHTML = '<div class="loading">加载中...</div>';
+
+    var tab = homeActiveTab;
+
     try {
-        var res = await api('/activities?size=6&page=1');
-        var activities = (res.data && res.data.content) ? res.data.content : [];
-        if (activities.length === 0) {
-            container.innerHTML = '<div class="empty-state">暂无推荐活动</div>';
-            return;
+        var data;
+        if (tab === 'activities') {
+            var res = await api('/activities?size=9&page=0');
+            data = (res.data && res.data.content) ? res.data.content : [];
+        } else {
+            var res = await api('/teams?size=9&page=1');
+            data = (res.data && res.data.content) ? res.data.content : [];
         }
 
-        container.innerHTML = activities.map(function(a) {
-            var catIcons = { sports: '⚽', outdoor: '🏔️', boardgame: '🎲', study: '📚', charity: '🤝', citywalk: '🚶' };
-            var catIcon = catIcons[a.category] || '📌';
-            var catNames = { sports: '运动', outdoor: '户外', boardgame: '桌游', study: '学习', charity: '公益', citywalk: '探索' };
-            var catName = catNames[a.category] || a.category;
-            var dateStr = a.startTime ? new Date(a.startTime).toLocaleDateString('zh-CN', {month:'short',day:'numeric'}) : '';
-            var loc = a.location || '';
-            return '<div class="activity-card" onclick="Router.navigate(\'/activity/' + a.id + '\')" style="cursor:pointer;">' +
-                '<div class="title">' + catIcon + ' ' + a.title + '</div>' +
-                '<div class="meta">' +
-                    '<span class="category-tag">' + catName + '</span>' +
-                    '<span>🕒 ' + dateStr + '</span>' +
-                    (loc ? '<span>📍 ' + loc + '</span>' : '') +
-                    '<span>👥 ' + (a.currentParticipants || 0) + '/' + (a.maxParticipants || '∞') + '</span>' +
-                '</div>' +
-            '</div>';
-        }).join('');
-
+        homeTabData[tab] = data;
+        renderHomeFeed(data, tab);
     } catch (e) {
         container.innerHTML = '<div class="empty-state">加载失败，下拉刷新重试</div>';
     }
+}
+
+function renderHomeFeed(data, tab) {
+    var container = document.getElementById('homeFeedWrapper');
+    if (!container) return;
+
+    if (!data || data.length === 0) {
+        var label = tab === 'activities' ? '暂无推荐活动' : '暂无推荐小队';
+        container.innerHTML = '<div class="empty-state">' + label + '</div>';
+        return;
+    }
+
+    if (tab === 'activities') {
+        container.innerHTML = data.map(function(a) {
+            var catIcons = { sports: '⚽', outdoor: '🏔️', boardgame: '🎲', study: '📚', charity: '🤝', citywalk: '🚶', hiking: '🥾' };
+            var catIcon = catIcons[a.category] || '📌';
+            var catNames = { sports: '运动', outdoor: '户外', boardgame: '桌游', study: '学习', charity: '公益', citywalk: '探索', hiking: '徒步' };
+            var catName = catNames[a.category] || a.category;
+            var dateStr = a.startTime ? formatHomeDate(a.startTime) : '';
+            var loc = a.location || '';
+            var feeStr = a.fee > 0 ? '¥' + a.fee : '免费';
+            var cover = a.coverImage
+                ? '<img class="home-feed-cover" src="' + escHtml(a.coverImage) + '" alt="" loading="lazy">'
+                : '<div class="home-feed-cover placeholder ' + escHtml(a.category || '') + '">' + catIcon + '</div>';
+
+            return '<div class="home-feed-card" onclick="Router.navigate(\'/activity/' + a.id + '\')">' +
+                cover +
+                '<div class="home-feed-body">' +
+                    '<div class="feed-title">' + escHtml(a.title) + '</div>' +
+                    '<div class="feed-meta">' +
+                        '<span class="home-feed-badge">' + escHtml(catName) + '</span>' +
+                        '<span>' + escHtml(dateStr) + '</span>' +
+                        (loc ? '<span>' + escHtml(loc) + '</span>' : '') +
+                    '</div>' +
+                    '<div class="feed-meta">' +
+                        '<span>👥 ' + (a.currentParticipants || 0) + '/' + (a.maxParticipants || '∞') + '人</span>' +
+                        '<span style="color:var(--primary);font-weight:600;">' + escHtml(feeStr) + '</span>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+    } else {
+        container.innerHTML = data.map(function(t) {
+            var desc = t.description || '';
+            var tags = t.tags || [];
+            var tagsHtml = tags.length > 0
+                ? '<div class="feed-tags">' + tags.slice(0, 3).map(function(tag) {
+                    return '<span class="tag">' + escHtml(tag) + '</span>';
+                  }).join('') + '</div>'
+                : '';
+            var badge = t.isPublic
+                ? '<span class="home-feed-badge" style="background:#dcfce7;color:#166534;">公开</span>'
+                : '<span class="home-feed-badge" style="background:#fef3c7;color:#b45309;">私密</span>';
+            var cover = t.coverImage
+                ? '<img class="home-feed-cover" src="' + escHtml(t.coverImage) + '" alt="" loading="lazy">'
+                : '<div class="home-feed-cover placeholder team">👥</div>';
+
+            return '<div class="home-feed-card" onclick="Router.navigate(\'/team/' + t.id + '\')">' +
+                cover +
+                '<div class="home-feed-body">' +
+                    '<div class="feed-title">' + escHtml(t.name) + '</div>' +
+                    (desc ? '<div class="feed-desc">' + escHtml(desc) + '</div>' : '') +
+                    tagsHtml +
+                    '<div class="feed-meta">' +
+                        badge +
+                        '<span>👤 ' + escHtml(t.leaderNickname || '') + '</span>' +
+                        '<span>👥 ' + (t.memberCount || 0) + '人</span>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+    }
+}
+
+// 首页日期格式化：同一年省略年份
+function formatHomeDate(dateStr) {
+    var d = new Date(dateStr);
+    var now = new Date();
+    var month = d.getMonth() + 1;
+    var day = d.getDate();
+    var hour = d.getHours().toString().padStart(2, '0');
+    var min = d.getMinutes().toString().padStart(2, '0');
+    if (d.getFullYear() === now.getFullYear()) {
+        return month + '月' + day + '日 ' + hour + ':' + min;
+    }
+    return d.getFullYear() + '年' + month + '月' + day + '日';
+}
+
+function escHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
