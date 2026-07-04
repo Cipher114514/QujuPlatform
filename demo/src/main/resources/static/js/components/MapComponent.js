@@ -438,9 +438,9 @@ var MapComponent = {
                 detailBtn.addEventListener('click', function() {
                     var activityId = parseInt(this.dataset.id);
                     if (typeof Router !== 'undefined') {
-                        Router.navigate('/activities/' + activityId);
+                        Router.navigate('/activity/' + activityId);
                     } else {
-                        window.location.href = '#/activities/' + activityId;
+                        window.location.href = '#/activity/' + activityId;
                     }
                     self.infoWindow.close();
                 });

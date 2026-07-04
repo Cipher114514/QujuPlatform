@@ -115,7 +115,7 @@ Router.register('/team/:id', {
                     <a href="#/team/${team.id}/chat" class="btn btn-primary">进入群聊</a>
                     <a href="#/team/${team.id}/create-activity" class="btn btn-outline">发布队内活动</a>
                     <a href="#/team/${team.id}/album" class="btn btn-outline">小队相册</a>
-                    <button class="btn btn-outline" onclick="showRequests()">入队申请</button>
+                    ${!team.isPublic ? '<button class="btn btn-outline" onclick="showRequests()">入队申请</button>' : ''}
                     <button class="btn btn-danger" onclick="handleDisbandTeam(${team.id})">解散小队</button>
                 `;
             } else if (team.userRole === 'member') {

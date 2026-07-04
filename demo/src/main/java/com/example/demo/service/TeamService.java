@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.annotation.RedisLock;
 import com.example.demo.dto.*;
 import com.example.demo.entity.*;
 import com.example.demo.exception.BusinessException;
@@ -123,6 +124,7 @@ public class TeamService {
      * 申请加入小队
      */
     @Transactional
+    @RedisLock(key = "team:join:{teamId}")
     public void joinTeam(Long teamId, Long currentUserId, JoinTeamRequest request) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new BusinessException("小队不存在"));
@@ -173,6 +175,7 @@ public class TeamService {
      * 处理加入申请（同意/拒绝）
      */
     @Transactional
+    @RedisLock(key = "team:handle:{teamId}")
     public TeamJoinRequestResponse handleJoinRequest(Long teamId, Long requestId, Long currentUserId, HandleTeamJoinRequest request) {
         // 验证队长权限
         Team team = teamRepository.findById(teamId)
@@ -621,6 +624,7 @@ public class TeamService {
      * 解散小队（仅队长可操作）
      */
     @Transactional
+    @RedisLock(key = "team:disband:{teamId}")
     public void disbandTeam(Long teamId, Long currentUserId) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new BusinessException("小队不存在"));

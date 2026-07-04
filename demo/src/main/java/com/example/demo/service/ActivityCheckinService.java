@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.annotation.RedisLock;
 import com.example.demo.dto.CheckinListResponse;
 import com.example.demo.dto.CheckinQrResponse;
 import com.example.demo.dto.CheckinStatusResponse;
@@ -66,6 +67,7 @@ public class ActivityCheckinService {
     }
 
     @Transactional
+    @RedisLock(key = "checkin:{activityId}")
     public CheckinStatusResponse checkin(Long activityId, User organizer, String tokenOrCode) {
         Activity activity = getActivity(activityId);
         assertCreator(activity, organizer.getId());

@@ -1,6 +1,11 @@
 // ====== 活动评价页 (US-023) ======
 // 路由 #/activity/:id/review
 
+function escHtml(text) {
+    if (!text) return '';
+    return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 Router.register('/activity/:id/review', {
     title: '活动评价',
     requireAuth: true,
@@ -166,19 +171,22 @@ async function submitReview() {
 function renderReviewCard(r) {
     var stars = '';
     for (var i = 0; i < 5; i++) { stars += i < (r.rating || 0) ? '★' : '☆'; }
+    var safeAvatar = escHtml(r.userAvatar || '');
+    var safeNick = escHtml(r.userNickname || '匿名');
+    var safeContent = escHtml(r.content || '');
     var avatarHtml = r.userAvatar
-        ? '<img src="' + r.userAvatar + '" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">'
+        ? '<img src="' + safeAvatar + '" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">'
         : '<div style="width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">' +
-          (r.userNickname ? r.userNickname.charAt(0) : '?') + '</div>';
+          (r.userNickname ? escHtml(r.userNickname.charAt(0)) : '?') + '</div>';
 
     return `
     <div class="card" style="margin-bottom:12px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
             ${avatarHtml}
-            <span style="font-weight:600;font-size:14px;">${r.userNickname || '匿名'}</span>
+            <span style="font-weight:600;font-size:14px;">${safeNick}</span>
             <span style="color:#f5a623;font-size:14px;margin-left:auto;">${stars}</span>
         </div>
-        ${r.content ? '<p style="font-size:14px;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap;">' + (r.content) + '</p>' : ''}
-        ${r.createdAt ? '<p style="font-size:11px;color:var(--text-secondary);margin-top:8px;">' + (r.createdAt).replace('T', ' ').substring(0, 16) + '</p>' : ''}
+        ${r.content ? '<p style="font-size:14px;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap;">' + safeContent + '</p>' : ''}
+        ${r.createdAt ? '<p style="font-size:11px;color:var(--text-secondary);margin-top:8px;">' + escHtml((r.createdAt).replace('T', ' ').substring(0, 16)) + '</p>' : ''}
     </div>`;
 }

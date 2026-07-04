@@ -143,7 +143,9 @@ Router.register('/activity/:id', {
     },
 
     renderActionButton: function(isCreator, isRegistered, isFull, data) {
-        var isEnded = getStatusInfo(data).cls === 'ended';
+        var statusInfo = getStatusInfo(data);
+        var isEnded = statusInfo.cls === 'ended';
+        var isCancelled = statusInfo.cls === 'cancelled';
 
         // 评分展示（无论什么角色都能看到）
         var ratingHtml = '';
@@ -153,9 +155,9 @@ Router.register('/activity/:id', {
             ratingHtml = '<div style="font-size:13px;color:#f5a623;margin-top:8px;">' + stars + ' <span style="color:var(--text-secondary);">' + (data.avgRating || 0).toFixed(1) + ' · ' + (data.reviewCount || 0) + '条评价</span></div>';
         }
 
-        // 已结束活动入口
+        // 已结束活动入口（取消的活动不显示复盘/评价入口）
         var endedHtml = '';
-        if (isEnded) {
+        if (isEnded && !isCancelled) {
             endedHtml = '<div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">';
             if (isCreator) {
                 endedHtml += '<a href="#/activity/' + data.id + '/retrospect" class="btn btn-primary btn-sm" style="width:auto;text-decoration:none;">📊 活动复盘</a>';
@@ -167,11 +169,19 @@ Router.register('/activity/:id', {
             endedHtml += '</div>';
         }
 
+        // 已结束/已取消的活动
+        if (isEnded || isCancelled) {
+            return '<div class="card" style="text-align:center;">' +
+                '<p style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">' + statusInfo.label + '</p>' +
+                ratingHtml + endedHtml +
+                '</div>';
+        }
+
         if (isCreator) {
             return '<div class="card" style="text-align:center;">' +
                 '<p style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">这是你发布的活动</p>' +
                 '<a href="#/activity/' + data.id + '/checkin" class="btn btn-primary btn-sm" style="width:auto;text-decoration:none;">签到核销</a>' +
-                ratingHtml + endedHtml +
+                ratingHtml +
                 '</div>';
         }
 
@@ -184,7 +194,6 @@ Router.register('/activity/:id', {
                     <a href="#/my-registrations" class="btn btn-outline btn-sm" style="width:auto;text-decoration:none;">查看我的报名</a>
                 </div>
                 ${ratingHtml}
-                ${endedHtml}
             </div>`;
         }
 
@@ -199,8 +208,8 @@ Router.register('/activity/:id', {
 
         // 检查是否已过报名截止时间
         if (data.registrationDeadline) {
-            var now = new Date().toISOString();
-            if (now > data.registrationDeadline) {
+            var now = new Date();
+            if (now > new Date(data.registrationDeadline)) {
                 return '<div class="card" style="text-align:center;"><p style="color:var(--text-secondary);font-size:14px;">报名已截止</p>' + ratingHtml + '</div>';
             }
         }
@@ -359,11 +368,11 @@ Router.register('/activity/:id', {
 // ====== 辅助函数 ======
 
 function getStatusInfo(data) {
-    var now = new Date().toISOString();
-    if (data.status === 'CANCELLED') return { label: '已取消', cls: 'ended' };
-    if (data.endTime && now > data.endTime) return { label: '已结束', cls: 'ended' };
-    if (data.startTime && now > data.startTime) return { label: '进行中', cls: 'active' };
-    if (data.registrationDeadline && now > data.registrationDeadline) return { label: '报名截止', cls: 'closed' };
+    var now = new Date();
+    if (data.status === 'CANCELLED') return { label: '已取消', cls: 'cancelled' };
+    if (data.endTime && now > new Date(data.endTime)) return { label: '已结束', cls: 'ended' };
+    if (data.startTime && now > new Date(data.startTime)) return { label: '进行中', cls: 'active' };
+    if (data.registrationDeadline && now > new Date(data.registrationDeadline)) return { label: '报名截止', cls: 'closed' };
     if (data.status === 'ACTIVE') return { label: '报名中', cls: 'open' };
     return { label: data.status, cls: 'default' };
 }

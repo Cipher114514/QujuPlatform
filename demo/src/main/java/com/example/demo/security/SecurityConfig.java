@@ -38,7 +38,12 @@ public class SecurityConfig {
                 .requestMatchers("/", "/index.html", "/ws-test.html", "/css/**", "/js/**", "/favicon.ico").permitAll()
                 .requestMatchers("/auth/**", "/upload/**", "/uploads/**", "/h2-console/**", "/ws/**").permitAll()
                 .requestMatchers("/config/**").permitAll()
+                // 签到相关接口需要认证
+                .requestMatchers(HttpMethod.GET, "/activities/*/qrcode", "/activities/*/checkin/**").authenticated()
+                // 活动浏览公开（详情、列表、评价、复盘画廊等）
                 .requestMatchers(HttpMethod.GET, "/activities/**").permitAll()
+                // 地图浏览公开
+                .requestMatchers(HttpMethod.GET, "/map/**").permitAll()
                 .requestMatchers("/admin/**").hasAuthority("ADMIN")
                 .anyRequest().authenticated()
             )

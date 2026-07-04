@@ -165,13 +165,12 @@ async function loadRetrospect(activityId) {
 
         // 只有发起人可以上传花絮
         var curUser = getCurUser();
-        fetch('/activities/' + activityId, {
-            headers: { 'Authorization': 'Bearer ' + getToken() }
-        }).then(function(r) { return r.json(); }).then(function(res) {
-            if (res.data && curUser && Number(curUser.id) === Number(res.data.creatorId)) {
+        try {
+            var activityRes = await api('/activities/' + activityId);
+            if (activityRes.data && curUser && Number(curUser.id) === Number(activityRes.data.creatorId)) {
                 document.getElementById('galleryUploadBtn').style.display = 'block';
             }
-        }).catch(function() {});
+        } catch (e) { /* 静默失败，不影响主流程 */ }
     } catch (err) {
         document.getElementById('retroStats').innerHTML =
             '<div class="card" style="text-align:center;padding:20px;color:var(--danger);">加载失败: ' + (err.message || '未知错误') + '</div>';
