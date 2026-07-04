@@ -163,7 +163,7 @@ Router.register('/activity/:id', {
                 endedHtml += '<a href="#/activity/' + data.id + '/retrospect" class="btn btn-primary btn-sm" style="width:auto;text-decoration:none;">📊 活动复盘</a>';
             }
             var regStatus = data.myRegistration && data.myRegistration.status;
-            if (regStatus === 'CHECKED_IN') {
+            if (regStatus === 'CHECKED_IN' || isCreator) {
                 endedHtml += '<a href="#/activity/' + data.id + '/review" class="btn btn-outline btn-sm" style="width:auto;text-decoration:none;">⭐ 评价活动</a>';
             }
             endedHtml += '</div>';

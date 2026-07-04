@@ -38,11 +38,14 @@ public class ReviewService {
             throw new BusinessException("活动还未结束，不能评价");
         }
 
-        Registration reg = registrationRepository.findByActivityIdAndUserId(activityId, userId)
-                .orElseThrow(() -> new BusinessException("您未报名此活动"));
-
-        if (!"CHECKED_IN".equals(reg.getStatus())) {
-            throw new BusinessException("您未签到此活动，不能评价");
+        // 活动发起者或已签到参与者可评价
+        boolean isCreator = activity.getCreatorId().equals(userId);
+        if (!isCreator) {
+            Registration reg = registrationRepository.findByActivityIdAndUserId(activityId, userId)
+                    .orElseThrow(() -> new BusinessException("您未报名此活动"));
+            if (!"CHECKED_IN".equals(reg.getStatus())) {
+                throw new BusinessException("您未签到此活动，不能评价");
+            }
         }
 
         if (reviewRepository.existsByActivityIdAndUserId(activityId, userId)) {
@@ -76,6 +79,15 @@ public class ReviewService {
                 .avgRating(avg.setScale(1, RoundingMode.HALF_UP))
                 .totalCount(count)
                 .build();
+    }
+
+    public void deleteReview(Long activityId, Long userId) {
+        Review review = reviewRepository.findByActivityIdAndUserId(activityId, userId)
+                .orElseThrow(() -> new BusinessException(404, "评价不存在"));
+        if (!review.getUserId().equals(userId)) {
+            throw new BusinessException(403, "只能删除自己的评价");
+        }
+        reviewRepository.delete(review);
     }
 
     private ReviewResponse toResponse(Review review, User user) {

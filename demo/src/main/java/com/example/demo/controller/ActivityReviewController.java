@@ -46,6 +46,14 @@ public class ActivityReviewController {
         return Result.ok(reviewService.getAvgRating(id));
     }
 
+    /** 删除自己的评价 */
+    @DeleteMapping("/{id}/review")
+    public Result<Void> deleteReview(@PathVariable Long id,
+                                      @AuthenticationPrincipal User currentUser) {
+        reviewService.deleteReview(id, currentUser.getId());
+        return Result.ok(null);
+    }
+
     /** 活动复盘统计 */
     @GetMapping("/{id}/retrospect")
     public Result<RetrospectResponse> getRetrospect(@PathVariable Long id) {
