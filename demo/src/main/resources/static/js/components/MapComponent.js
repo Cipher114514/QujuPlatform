@@ -9,16 +9,13 @@ var MapComponent = {
     infoWindow: null,
     isInitialized: false,
     allActivities: [],
-    currentFilters: {
-        category: '',
-        distance: 0
-    },
+    currentFilters: { category: '', distance: 0 },
     isSDKLoaded: false,
     isLoading: false,
-    // 用户位置标记
     userMarker: null,
-    // 是否已定位
     isLocated: false,
+    manualCity: null,    // 用户手动选择的城市名
+    _keepView: false,    // 标记：跳过 renderMarkers 中的 setFitView
     
     /**
      * 从后端获取高德配置并加载SDK
@@ -160,8 +157,10 @@ var MapComponent = {
         // 加载活动数据
         this.loadActivities();
         
-        // 定位并显示用户位置
-        this.locateUser();
+        // 如果没有保存的城市，尝试 IP 定位
+        if (!this.manualCity) {
+            this.locateUser();
+        }
     },
     
     /**
@@ -169,48 +168,126 @@ var MapComponent = {
      */
     locateUser: function() {
         var self = this;
-        
-        // 使用高德 Geolocation 插件
-        var geolocation = new AMap.Geolocation({
-            enableHighAccuracy: true,  // 是否使用高精度定位
-            timeout: 10000,            // 超时时间
-            buttonPosition: 'RB',      // 定位按钮位置
-            buttonOffset: new AMap.Pixel(10, 20),
-            zoomToAccuracy: true,      // 定位成功后自动调整地图视野
-            showMarker: true,          // 是否显示定位标记
-            showCircle: true,          // 是否显示定位精度圈
-            panToLocation: true        // 定位成功后是否自动移动到定位点
-        });
-        
-        // 将定位控件添加到地图
-        this.mapInstance.addControl(geolocation);
-        
-        // 监听定位事件
-        geolocation.getCurrentPosition(function(status, result) {
-            if (status === 'complete') {
-                self.isLocated = true;
-                console.log('定位成功:', result.position);
-                
-                // 获取定位结果
-                var position = result.position;
-                var lat = position.getLat();
-                var lng = position.getLng();
-                
-                // 创建用户位置标记（使用高德提供的标记方法）
-                self.createUserMarker(lat, lng);
-                
-                // 缩放地图到合适级别
-                self.mapInstance.setZoom(15);
-                
-                toast('已定位到您的位置');
-            } else {
-                console.warn('定位失败:', result);
-                // 定位失败，使用默认位置
-                toast('定位失败，使用默认位置', 'error');
+
+        if (!this.mapInstance) {
+            toast('地图尚未加载完成', 'error');
+            return;
+        }
+
+        // 如果用户已手动选择城市，跳过 IP 定位
+        if (this.manualCity) {
+            toast('当前城市：' + this.manualCity);
+            return;
+        }
+
+        // 先用 IP 快速定位
+        this._fallbackIpLocate();
+
+        // GPS 精确定位在后台尝试
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                function(pos) {
+                    self.isLocated = true;
+                    var lat = pos.coords.latitude;
+                    var lng = pos.coords.longitude;
+                    self.createUserMarker(lat, lng);
+                    self.mapInstance.setZoomAndCenter(15, [lng, lat]);
+                    toast('GPS 已精确定位');
+                },
+                function(err) {
+                    console.log('GPS 不可用 (' + err.code + ')，使用 IP 定位');
+                },
+                { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+            );
+        }
+    },
+
+    /**
+     * IP 定位兜底（不需要 HTTPS，通过高德 IP 定位）
+     */
+    _fallbackIpLocate: function() {
+        var self = this;
+        console.log('尝试 IP 定位...');
+
+        // 从 ConfigController 已有配置中获取 key（通过已加载的 SDK 脚本参数反推）
+        // 直接用高德 IP 定位 REST API，不需要额外插件
+        var key = (typeof AMap !== 'undefined' && AMap._cfg && AMap._cfg.key) ? AMap._cfg.key : '';
+        if (!key) {
+            // 尝试从 SDK script src 中提取
+            var scripts = document.querySelectorAll('script[src*="webapi.amap.com"]');
+            if (scripts.length > 0) {
+                var match = scripts[0].src.match(/key=([^&]+)/);
+                if (match) key = match[1];
             }
-        });
+        }
+
+        if (!key) {
+            console.error('无法获取高德 Key');
+            toast('定位失败，请手动选择城市', 'error');
+            return;
+        }
+
+        // 调用高德 IP 定位 REST API
+        var url = 'https://restapi.amap.com/v3/ip?key=' + key;
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                console.log('IP 定位结果:', data);
+                if (data.status === '1' && data.rectangle) {
+                    var parts = data.rectangle.split(';');
+                    if (parts.length === 2) {
+                        var sw = parts[0].split(',');
+                        var ne = parts[1].split(',');
+                        if (sw.length === 2 && ne.length === 2) {
+                            var lng = (parseFloat(sw[0]) + parseFloat(ne[0])) / 2;
+                            var lat = (parseFloat(sw[1]) + parseFloat(ne[1])) / 2;
+                            self.mapInstance.setZoomAndCenter(14, [lng, lat]);
+                            var city = data.city || data.province || '当前位置';
+                            // 弹窗确认
+                            if (confirm('检测到您在 ' + city + '，是否正确？\n\n点击「取消」可手动选择城市。')) {
+                                toast('已定位到 ' + city);
+                                self._updateCitySelector(city);
+                                // 首次 IP 定位成功也记住
+                                if (!localStorage.getItem('map_city')) {
+                                    self._updateCitySelector(city);
+                                }
+                            } else {
+                                toast('请在顶部工具栏选择城市', '');
+                            }
+                            return;
+                        }
+                    }
+                }
+                console.warn('IP 定位解析失败:', data);
+                toast('IP 定位失败，请手动选择城市', 'error');
+            })
+            .catch(function(e) {
+                console.error('IP 定位请求失败:', e);
+                toast('定位失败，请手动选择城市', 'error');
+            });
     },
     
+    _updateCitySelector: function(city) {
+        var sel = document.getElementById('citySelector');
+        if (!sel || !city) return;
+        // 先精确匹配
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].text === city) {
+                sel.value = i;
+                localStorage.setItem('map_city', i);
+                return;
+            }
+        }
+        // 模糊匹配（如"北京市"包含"北京"，或"杭州"被"杭州市"包含）
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].text.indexOf(city) !== -1 || city.indexOf(sel.options[i].text) !== -1) {
+                sel.value = i;
+                localStorage.setItem('map_city', i);
+                return;
+            }
+        }
+    },
+
     /**
      * 创建用户位置标记
      */
@@ -244,6 +321,18 @@ var MapComponent = {
         this.mapInstance.setCenter([lng, lat]);
         
         console.log('用户位置标记已创建: ', lat, lng);
+    },
+
+    /**
+     * 切换地图中心到指定城市
+     */
+    centerTo: function(lat, lng, zoom) {
+        if (!this.mapInstance) return;
+        this.mapInstance.setZoomAndCenter(zoom || 16, [lng, lat]);
+        // 标记跳过 setFitView，保留手动设置的 zoom
+        this._keepView = true;
+        // 重新加载该区域活动
+        this.loadActivities();
     },
     
     /**
@@ -347,8 +436,8 @@ var MapComponent = {
         
         console.log('渲染标记完成，共', this.markers.length, '个标记');
         
-        // 如果有标记，自动调整视野
-        if (this.markers.length > 0) {
+        // 如果有标记且非手动切换城市，自动调整视野
+        if (!this._keepView && this.markers.length > 0) {
             // 如果已定位，同时显示用户位置和所有活动标记
             if (this.isLocated && this.userMarker) {
                 // 构建视野包含所有标记和用户位置
@@ -361,6 +450,8 @@ var MapComponent = {
                 this.mapInstance.setFitView(this.markers);
             }
         }
+        // 重置标记
+        this._keepView = false;
         
         // 更新统计信息
         this.updateStats(this.markers.length);
@@ -534,6 +625,7 @@ var MapComponent = {
         this.infoWindow = null;
         this.isInitialized = false;
         this.isLocated = false;
+        this._keepView = false;
         this.allActivities = [];
         this.isSDKLoaded = false;
         this.isLoading = false;

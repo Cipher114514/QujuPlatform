@@ -41,19 +41,30 @@ public class AmapService {
      * @return GeocodeResult 包含经纬度和格式化地址
      */
     public GeocodeResult geocode(String address) {
+        return geocode(address, null);
+    }
+
+    /**
+     * 地理编码：地址转坐标（带城市限定）
+     * @param address 地址描述
+     * @param city 城市名（如"北京"），用于限定搜索范围，提高精度
+     * @return GeocodeResult 包含经纬度和格式化地址
+     */
+    public GeocodeResult geocode(String address, String city) {
         if (address == null || address.isBlank()) {
             log.warn("地址为空，无法进行地理编码");
             return null;
         }
 
         try {
-            // 构建请求URL
-            String url = UriComponentsBuilder.fromUriString(AMAP_GEOCODE_URL)
+            UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(AMAP_GEOCODE_URL)
                     .queryParam("key", amapApiKey)
                     .queryParam("address", address)
-                    .queryParam("output", "JSON")
-                    .build()
-                    .toUriString();
+                    .queryParam("output", "JSON");
+            if (city != null && !city.isBlank()) {
+                builder.queryParam("city", city);
+            }
+            String url = builder.build().toUriString();
 
             log.debug("调用高德地理编码API: {}", url);
             String response = restTemplate.getForObject(url, String.class);
