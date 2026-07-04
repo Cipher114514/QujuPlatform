@@ -80,8 +80,11 @@ async function loadMyActivities() {
 function renderMyActivityCard(a) {
     var statusMap = { ACTIVE: '报名中', FULL: '已满员', ENDED: '已结束', CANCELLED: '已取消', PENDING: '待审核' };
     var statusClassMap = { ACTIVE: 'success', FULL: 'danger', ENDED: 'secondary', CANCELLED: 'secondary', PENDING: 'warning' };
-    var statusLabel = statusMap[a.status] || a.status;
-    var statusCls = statusClassMap[a.status] || 'secondary';
+
+    // 基于时间覆盖状态（后端可能未自动将status更新为ENDED）
+    var statusInfo = getTimeBasedStatus(a);
+    var statusLabel = statusInfo.label;
+    var statusCls = statusInfo.cls;
     var catLabel = getCatLabelMyAct(a.category);
     var timeStr = a.startTime ? formatMyTime(a.startTime) : '时间待定';
 
@@ -103,7 +106,7 @@ function renderMyActivityCard(a) {
         <div class="my-card-actions">\
             <button class="btn btn-outline btn-sm btn-view" data-id="' + a.id + '">查看</button>\
             <button class="btn btn-outline btn-sm btn-clone" data-id="' + a.id + '">克隆</button>\
-            ' + (a.status === 'ACTIVE' ? '\
+            ' + (statusInfo.isActive ? '\
             <button class="btn btn-outline btn-sm btn-edit" data-id="' + a.id + '">编辑</button>\
             <button class="btn btn-outline btn-sm btn-cancel" data-id="' + a.id + '" style="color:var(--danger);">撤销</button>\
             ' : '') + '\
@@ -190,6 +193,19 @@ function formatMyTime(iso) {
     var minutes = d.getMinutes();
     if (minutes < 10) minutes = '0' + minutes;
     return month + '月' + day + '日 ' + hours + ':' + minutes;
+}
+
+// 基于时间判断活动状态，覆盖后端可能未更新的status字段
+function getTimeBasedStatus(a) {
+    var now = new Date();
+    if (a.status === 'CANCELLED') return { label: '已取消', cls: 'secondary', isActive: false };
+    if (a.endTime && now > new Date(a.endTime)) return { label: '已结束', cls: 'secondary', isActive: false };
+    if (a.startTime && now > new Date(a.startTime)) return { label: '进行中', cls: 'success', isActive: true };
+    if (a.registrationDeadline && now > new Date(a.registrationDeadline)) return { label: '报名截止', cls: 'warning', isActive: true };
+    if (a.status === 'ACTIVE') return { label: '报名中', cls: 'success', isActive: true };
+    if (a.status === 'FULL') return { label: '已满员', cls: 'danger', isActive: true };
+    if (a.status === 'PENDING') return { label: '待审核', cls: 'warning', isActive: false };
+    return { label: a.status || '未知', cls: 'secondary', isActive: false };
 }
 
 // ====== US-008 草稿箱 ======

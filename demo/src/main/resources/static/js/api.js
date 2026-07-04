@@ -174,6 +174,7 @@ var TeamAPI = {
 var ReviewAPI = {
     create:   function(activityId, body) { return api('/activities/' + activityId + '/review', { method:'POST', body: body }); },
     list:     function(activityId, page, size) { return api('/activities/' + activityId + '/reviews?page=' + (page||0) + '&size=' + (size||10)); },
+    delete:   function(activityId) { return api('/activities/' + activityId + '/review', { method:'DELETE' }); },
     avg:      function(activityId) { return api('/activities/' + activityId + '/review/avg'); },
     retrospect: function(activityId) { return api('/activities/' + activityId + '/retrospect'); },
     galleryList: function(activityId, page, size) { return api('/activities/' + activityId + '/retrospect/gallery?page=' + (page||0) + '&size=' + (size||12)); },

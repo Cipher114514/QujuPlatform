@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 @Repository
 public interface ReviewRepository extends JpaRepository<Review, Long> {
@@ -17,6 +18,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     long countByActivityId(Long activityId);
 
     boolean existsByActivityIdAndUserId(Long activityId, Long userId);
+
+    Optional<Review> findByActivityIdAndUserId(Long activityId, Long userId);
 
     @Query("SELECT COALESCE(AVG(r.rating), 0) FROM Review r WHERE r.activityId = :activityId")
     BigDecimal getAvgRatingByActivityId(Long activityId);

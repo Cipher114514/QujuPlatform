@@ -54,7 +54,7 @@ async function loadReviews(activityId) {
         }
 
         for (var i = 0; i < page.content.length; i++) {
-            html += renderReviewCard(page.content[i]);
+            html += renderReviewCard(page.content[i], getCurUser());
         }
         document.getElementById('reviewListContainer').innerHTML = html;
 
@@ -168,7 +168,7 @@ async function submitReview() {
     }
 }
 
-function renderReviewCard(r) {
+function renderReviewCard(r, curUser) {
     var stars = '';
     for (var i = 0; i < 5; i++) { stars += i < (r.rating || 0) ? '★' : '☆'; }
     var safeAvatar = escHtml(r.userAvatar || '');
@@ -179,14 +179,33 @@ function renderReviewCard(r) {
         : '<div style="width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">' +
           (r.userNickname ? escHtml(r.userNickname.charAt(0)) : '?') + '</div>';
 
+    var isOwn = curUser && Number(curUser.id) === Number(r.userId);
+    var deleteBtnHtml = isOwn
+        ? '<button class="btn btn-outline btn-sm" style="width:auto;font-size:11px;color:var(--danger);margin-left:auto;" onclick="deleteMyReview(' + r.id + ')">删除</button>'
+        : '';
+
     return `
     <div class="card" style="margin-bottom:12px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
             ${avatarHtml}
             <span style="font-weight:600;font-size:14px;">${safeNick}</span>
-            <span style="color:#f5a623;font-size:14px;margin-left:auto;">${stars}</span>
+            ${deleteBtnHtml}
+            <span style="color:#f5a623;font-size:14px;">${stars}</span>
         </div>
         ${r.content ? '<p style="font-size:14px;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap;">' + safeContent + '</p>' : ''}
         ${r.createdAt ? '<p style="font-size:11px;color:var(--text-secondary);margin-top:8px;">' + escHtml((r.createdAt).replace('T', ' ').substring(0, 16)) + '</p>' : ''}
     </div>`;
+}
+
+async function deleteMyReview(reviewId) {
+    if (!confirm('确定要删除这条评价吗？')) return;
+    try {
+        await ReviewAPI.delete(_reviewActivityId);
+        toast('评价已删除');
+        _reviewPage = 0;
+        loadReviews(_reviewActivityId);
+        loadAvgRating(_reviewActivityId);
+    } catch (err) {
+        toast(err.message || '删除失败', 'error');
+    }
 }
