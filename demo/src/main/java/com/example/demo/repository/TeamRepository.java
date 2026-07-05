@@ -59,4 +59,32 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
      */
     @Query("SELECT t.tags FROM Team t WHERE t.status = 'ACTIVE' AND t.tags IS NOT NULL")
     List<String> findAllTags();
+
+    /**
+     * 管理员查询所有小队（含停用、解散）
+     */
+    @Query("SELECT t FROM Team t ORDER BY t.createdAt DESC")
+    Page<Team> findAllForAdmin(Pageable pageable);
+
+    /**
+     * 管理员按关键词搜索所有小队（含停用、解散）
+     */
+    @Query("SELECT t FROM Team t WHERE " +
+           "(LOWER(t.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(t.description) LIKE LOWER(CONCAT('%', :keyword, '%'))) ORDER BY t.createdAt DESC")
+    Page<Team> searchAllForAdmin(@Param("keyword") String keyword, Pageable pageable);
+
+    /**
+     * 管理员按状态筛选小队
+     */
+    @Query("SELECT t FROM Team t WHERE t.status = :status ORDER BY t.createdAt DESC")
+    Page<Team> findByStatusForAdmin(@Param("status") Team.TeamStatus status, Pageable pageable);
+
+    /**
+     * 管理员按状态和关键词筛选小队
+     */
+    @Query("SELECT t FROM Team t WHERE t.status = :status AND " +
+           "(LOWER(t.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(t.description) LIKE LOWER(CONCAT('%', :keyword, '%'))) ORDER BY t.createdAt DESC")
+    Page<Team> searchByStatusForAdmin(@Param("status") Team.TeamStatus status, @Param("keyword") String keyword, Pageable pageable);
 }

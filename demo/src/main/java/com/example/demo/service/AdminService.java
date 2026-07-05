@@ -2,11 +2,16 @@ package com.example.demo.service;
 
 import com.example.demo.dto.*;
 import com.example.demo.entity.Activity;
+import com.example.demo.entity.Team;
+import com.example.demo.entity.Team.TeamStatus;
+import com.example.demo.entity.TeamMember;
 import com.example.demo.entity.User;
 import com.example.demo.entity.User.UserRole;
 import com.example.demo.entity.User.UserStatus;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.ActivityRepository;
+import com.example.demo.repository.TeamMemberRepository;
+import com.example.demo.repository.TeamRepository;
 import com.example.demo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +21,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +32,8 @@ public class AdminService {
 
     private final UserRepository userRepository;
     private final ActivityRepository activityRepository;
+    private final TeamRepository teamRepository;
+    private final TeamMemberRepository teamMemberRepository;
 
     // ==================== 统计 ====================
 
@@ -185,5 +195,99 @@ public class AdminService {
 
         activityRepository.delete(activity);
         log.info("管理员删除活动: activityId={}", activityId);
+    }
+
+    @Transactional
+    public Activity restoreActivity(Long activityId) {
+        Activity activity = activityRepository.findById(activityId)
+                .orElseThrow(() -> new BusinessException("活动不存在"));
+
+        if (!"CANCELLED".equals(activity.getStatus())) {
+            throw new BusinessException("只有已下架的活动才能恢复");
+        }
+
+        activity.setStatus("ACTIVE");
+        activityRepository.save(activity);
+
+        log.info("管理员恢复活动: activityId={}", activityId);
+        return activity;
+    }
+
+    // ==================== 小队管理 ====================
+
+    public Page<Team> listAllTeams(String keyword, String status, int page, int size) {
+        TeamStatus statusEnum = null;
+        if (status != null && !status.isBlank()) {
+            try { statusEnum = TeamStatus.valueOf(status.toUpperCase()); } catch (IllegalArgumentException ignored) {}
+        }
+        String kw = (keyword != null && !keyword.isBlank()) ? keyword : null;
+
+        if (statusEnum != null && kw != null) {
+            return teamRepository.searchByStatusForAdmin(statusEnum, kw, PageRequest.of(page, size));
+        } else if (statusEnum != null) {
+            return teamRepository.findByStatusForAdmin(statusEnum, PageRequest.of(page, size));
+        } else if (kw != null) {
+            return teamRepository.searchAllForAdmin(kw, PageRequest.of(page, size));
+        } else {
+            return teamRepository.findAllForAdmin(PageRequest.of(page, size));
+        }
+    }
+
+    public Map<String, Object> getTeamDetail(Long teamId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        List<TeamMember> members = teamMemberRepository.findByTeamIdOrderByJoinedAt(teamId);
+        List<Activity> activities = activityRepository.findByTeamId(teamId, PageRequest.of(0, 50)).getContent();
+
+        User leader = userRepository.findById(team.getLeaderId()).orElse(null);
+
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("team", team);
+        detail.put("leader", leader != null ? AdminUserResponse.from(leader) : null);
+        detail.put("members", members);
+        detail.put("activities", activities);
+
+        return detail;
+    }
+
+    @Transactional
+    public Team disableTeam(Long teamId, DisableTeamRequest req) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (team.getStatus() != TeamStatus.ACTIVE) {
+            throw new BusinessException("只有正常状态的小队才能停用");
+        }
+
+        if (req.getReason() == null || req.getReason().isBlank()) {
+            throw new BusinessException("请填写停用原因");
+        }
+
+        team.setStatus(TeamStatus.DISABLED);
+        team.setDisabledReason(req.getReason());
+        team.setDisabledAt(LocalDateTime.now());
+        teamRepository.save(team);
+
+        log.info("管理员停用小队: teamId={}, reason={}", teamId, req.getReason());
+        return team;
+    }
+
+    @Transactional
+    public Team restoreTeam(Long teamId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (team.getStatus() != TeamStatus.DISABLED) {
+            throw new BusinessException("只有已停用的小队才能恢复");
+        }
+
+        team.setStatus(TeamStatus.ACTIVE);
+        team.setDisabledReason(null);
+        team.setDisabledAt(null);
+        teamRepository.save(team);
+
+        log.info("管理员恢复小队: teamId={}", teamId);
+        return team;
     }
 }

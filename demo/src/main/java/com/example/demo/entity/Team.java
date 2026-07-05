@@ -50,7 +50,7 @@ public class Team {
     @Builder.Default
     private Integer memberCount = 1;
 
-    /** 状态: ACTIVE(正常), DISBANDED(已解散) */
+    /** 状态: ACTIVE(正常), DISABLED(已停用), DISBANDED(已解散) */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
@@ -59,6 +59,13 @@ public class Team {
     /** 群公告 */
     @Column(length = 500)
     private String announcement;
+
+    /** 停用原因 */
+    @Column(length = 500)
+    private String disabledReason;
+
+    /** 停用时间 */
+    private LocalDateTime disabledAt;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -77,6 +84,6 @@ public class Team {
     }
 
     public enum TeamStatus {
-        ACTIVE, DISBANDED
+        ACTIVE, DISABLED, DISBANDED
     }
 }

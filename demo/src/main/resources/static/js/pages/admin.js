@@ -44,6 +44,7 @@ Router.register('/admin', {
                 <button class="btn btn-primary btn-sm admin-tab-btn active" data-tab="users">👥 用户管理</button>
                 <button class="btn btn-outline btn-sm admin-tab-btn" data-tab="business">🏪 商家审批 <span id="pendingBadge" style="display:none;background:#f59e0b;color:#fff;border-radius:50%;padding:0 6px;font-size:11px;margin-left:4px;">0</span></button>
                 <button class="btn btn-outline btn-sm admin-tab-btn" data-tab="activities">📋 活动管理</button>
+                <button class="btn btn-outline btn-sm admin-tab-btn" data-tab="teams">👨‍👩‍👧‍👦 小队管理</button>
             </div>
 
             <!-- 用户管理 -->
@@ -72,6 +73,30 @@ Router.register('/admin', {
                 <div id="activityAdminList"><p style="text-align:center;padding:40px;color:var(--text-secondary);"><span class="spinner"></span> 加载中...</p></div>
                 <div id="activityAdminPagination" style="text-align:center;margin-top:12px;"></div>
             </div>
+
+            <!-- 小队管理 -->
+            <div id="tabTeams" class="admin-tab-content" style="display:none;">
+                <div class="card" style="margin-bottom:12px;padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                    <input type="text" id="teamSearchInput" placeholder="搜索小队名称或简介..." style="flex:1;min-width:160px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text);">
+                    <select id="teamStatusFilter" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);">
+                        <option value="">全部状态</option><option value="ACTIVE">正常</option><option value="DISABLED">已停用</option><option value="DISBANDED">已解散</option>
+                    </select>
+                    <button class="btn btn-primary btn-sm" id="teamSearchBtn">搜索</button>
+                </div>
+                <div id="teamAdminList"><p style="text-align:center;padding:40px;color:var(--text-secondary);"><span class="spinner"></span> 加载中...</p></div>
+                <div id="teamAdminPagination" style="text-align:center;margin-top:12px;"></div>
+                
+                <!-- 小队详情弹窗 -->
+                <div id="teamDetailModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;display:flex;align-items:center;justify-content:center;">
+                    <div class="card" style="width:90%;max-width:600px;max-height:85vh;overflow-y:auto;padding:20px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                            <h3 id="teamDetailTitle" style="margin:0;">小队详情</h3>
+                            <button id="teamDetailCloseBtn" class="btn btn-outline btn-sm">关闭</button>
+                        </div>
+                        <div id="teamDetailContent"></div>
+                    </div>
+                </div>
+            </div>
         </div>`;
     },
 
@@ -82,6 +107,7 @@ Router.register('/admin', {
         self.currentTab = 'users';
         self.userPage = 0;
         self.activityPage = 0;
+        self.teamPage = 0;
 
         // Tab 切换
         document.querySelectorAll('.admin-tab-btn').forEach(function(btn) {
@@ -100,6 +126,23 @@ Router.register('/admin', {
             if (e.key === 'Enter') { self.userPage = 0; self.loadUsers(); }
         });
 
+        // 小队搜索按钮
+        document.getElementById('teamSearchBtn').addEventListener('click', function() {
+            self.teamPage = 0;
+            self.loadTeams();
+        });
+        document.getElementById('teamSearchInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { self.teamPage = 0; self.loadTeams(); }
+        });
+
+        // 小队详情弹窗关闭
+        document.getElementById('teamDetailCloseBtn').addEventListener('click', function() {
+            document.getElementById('teamDetailModal').style.display = 'none';
+        });
+        document.getElementById('teamDetailModal').addEventListener('click', function(e) {
+            if (e.target === this) this.style.display = 'none';
+        });
+
         // 加载初始数据
         this.loadStats();
         this.loadUsers();
@@ -116,6 +159,7 @@ Router.register('/admin', {
 
         if (tab === 'business') this.loadPendingBusinesses();
         if (tab === 'activities') this.loadActivities();
+        if (tab === 'teams') this.loadTeams();
     },
 
     // ========== 统计 ==========
@@ -398,6 +442,7 @@ Router.register('/admin', {
                     '</div>' +
                     '<div style="display:flex;gap:4px;flex-shrink:0;">' +
                         (a.status === 'ACTIVE' ? '<button class="btn btn-warning btn-sm cancel-act-btn" data-id="' + a.id + '" style="padding:2px 10px;font-size:12px;background:#f59e0b;color:#fff;border:none;">下架</button>' : '') +
+                        (a.status === 'CANCELLED' ? '<button class="btn btn-success btn-sm restore-act-btn" data-id="' + a.id + '" style="padding:2px 10px;font-size:12px;">恢复</button>' : '') +
                         '<button class="btn btn-danger btn-sm del-act-btn" data-id="' + a.id + '" style="padding:2px 10px;font-size:12px;">删除</button>' +
                     '</div>' +
                 '</div>';
@@ -406,6 +451,11 @@ Router.register('/admin', {
             container.querySelectorAll('.cancel-act-btn').forEach(function(btn) {
                 btn.addEventListener('click', function() {
                     self.cancelActivity(parseInt(this.dataset.id));
+                });
+            });
+            container.querySelectorAll('.restore-act-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    self.restoreActivity(parseInt(this.dataset.id));
                 });
             });
             container.querySelectorAll('.del-act-btn').forEach(function(btn) {
@@ -456,6 +506,191 @@ Router.register('/admin', {
                 toast('活动已删除');
                 self.loadActivities();
                 self.loadStats();
+            })
+            .catch(function(err) { toast(err.message, 'error'); });
+    },
+
+    restoreActivity: function(activityId) {
+        if (!confirm('确定恢复此活动吗？')) return;
+        var self = this;
+        api('/admin/activities/' + activityId + '/restore', { method: 'PUT' })
+            .then(function() {
+                toast('活动已恢复');
+                self.loadActivities();
+                self.loadStats();
+            })
+            .catch(function(err) { toast(err.message, 'error'); });
+    },
+
+    // ========== 小队管理 ==========
+    loadTeams: async function() {
+        var self = this;
+        var container = document.getElementById('teamAdminList');
+        container.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-secondary);"><span class="spinner"></span> 加载中...</p>';
+        try {
+            var keyword = document.getElementById('teamSearchInput').value.trim();
+            var status = document.getElementById('teamStatusFilter').value;
+            var params = '?page=' + self.teamPage + '&size=15';
+            if (keyword) params += '&keyword=' + encodeURIComponent(keyword);
+            if (status) params += '&status=' + status;
+
+            var res = await api('/admin/teams' + params);
+            var page = res.data;
+            var teams = page.content || [];
+            if (teams.length === 0) {
+                container.innerHTML = '<div class="card" style="text-align:center;padding:30px;color:var(--text-secondary);">暂无小队</div>';
+                return;
+            }
+            var statusStyle = { ACTIVE: 'color:#10b981;', DISABLED: 'color:#f59e0b;', DISBANDED: 'color:var(--danger);' };
+            var statusLabel = { ACTIVE: '正常', DISABLED: '已停用', DISBANDED: '已解散' };
+            container.innerHTML = teams.map(function(t) {
+                var st = statusStyle[t.status] || '';
+                var stLabel = statusLabel[t.status] || t.status;
+                return '<div class="card" style="margin-bottom:6px;padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:14px;">' +
+                    '<div style="width:36px;height:36px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:var(--primary);">' + (t.coverImage ? '<img src="' + escapeHtml(t.coverImage) + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">' : '👥') + '</div>' +
+                    '<div style="flex:1;min-width:0;">' +
+                        '<div><b>' + escapeHtml(t.name) + '</b> <span style="font-size:11px;color:var(--text-secondary);">#' + t.id + '</span></div>' +
+                        '<div style="font-size:12px;color:var(--text-secondary);">' + (t.description || '') + '</div>' +
+                        '<div style="font-size:11px;margin-top:2px;">' +
+                            '<span style="' + st + '">' + stLabel + '</span> | ' +
+                            '成员: ' + t.memberCount + '人 | ' +
+                            '队长ID: ' + t.leaderId +
+                            (t.disabledReason ? ' <span style="color:#f59e0b;font-size:11px;">原因: ' + escapeHtml(t.disabledReason) + '</span>' : '') +
+                        '</div>' +
+                    '</div>' +
+                    '<div style="display:flex;gap:4px;flex-shrink:0;">' +
+                        '<button class="btn btn-outline btn-sm team-detail-btn" data-id="' + t.id + '" style="padding:2px 10px;font-size:12px;">详情</button>' +
+                        (t.status === 'ACTIVE' ? '<button class="btn btn-warning btn-sm disable-team-btn" data-id="' + t.id + '" data-name="' + escapeHtml(t.name) + '" style="padding:2px 10px;font-size:12px;background:#f59e0b;color:#fff;border:none;">停用</button>' : '') +
+                        (t.status === 'DISABLED' ? '<button class="btn btn-success btn-sm restore-team-btn" data-id="' + t.id + '" style="padding:2px 10px;font-size:12px;">恢复</button>' : '') +
+                    '</div>' +
+                '</div>';
+            }).join('');
+
+            container.querySelectorAll('.team-detail-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    self.showTeamDetail(parseInt(this.dataset.id));
+                });
+            });
+            container.querySelectorAll('.disable-team-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    self.disableTeam(parseInt(this.dataset.id), this.dataset.name);
+                });
+            });
+            container.querySelectorAll('.restore-team-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    self.restoreTeam(parseInt(this.dataset.id));
+                });
+            });
+
+            var pgContainer = document.getElementById('teamAdminPagination');
+            if (page.totalPages > 1) {
+                var html = '<button class="btn btn-outline btn-sm" ' + (page.number === 0 ? 'disabled' : '') + ' data-tp="' + (page.number - 1) + '">上一页</button> ';
+                html += '<span style="font-size:13px;color:var(--text-secondary);">' + (page.number + 1) + ' / ' + page.totalPages + '</span> ';
+                html += '<button class="btn btn-outline btn-sm" ' + (page.number >= page.totalPages - 1 ? 'disabled' : '') + ' data-tp="' + (page.number + 1) + '">下一页</button>';
+                pgContainer.innerHTML = html;
+                pgContainer.querySelectorAll('button').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        if (this.disabled) return;
+                        self.teamPage = parseInt(this.dataset.tp);
+                        self.loadTeams();
+                    });
+                });
+            } else {
+                pgContainer.innerHTML = '';
+            }
+        } catch (err) {
+            container.innerHTML = '<p style="text-align:center;color:var(--danger);padding:16px;">加载失败: ' + escapeHtml(err.message) + '</p>';
+        }
+    },
+
+    showTeamDetail: async function(teamId) {
+        var self = this;
+        var modal = document.getElementById('teamDetailModal');
+        var content = document.getElementById('teamDetailContent');
+        content.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-secondary);"><span class="spinner"></span> 加载中...</p>';
+        modal.style.display = 'flex';
+        try {
+            var res = await api('/admin/teams/' + teamId);
+            var data = res.data;
+            var team = data.team;
+            var leader = data.leader;
+            var members = data.members || [];
+            var activities = data.activities || [];
+
+            var statusLabel = { ACTIVE: '<span style="color:#10b981;">正常</span>', DISABLED: '<span style="color:#f59e0b;">已停用</span>', DISBANDED: '<span style="color:var(--danger);">已解散</span>' };
+            var roleLabel = { LEADER: '<span style="color:var(--primary);">队长</span>', ADMIN: '<span style="color:#f59e0b;">管理员</span>', MEMBER: '<span style="color:var(--text-secondary);">成员</span>' };
+
+            var html = '<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);">' +
+                '<div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">' +
+                '<div style="width:48px;height:48px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--primary);">' + (team.coverImage ? '<img src="' + escapeHtml(team.coverImage) + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">' : '👥') + '</div>' +
+                '<div>' +
+                '<h4 style="margin:0;">' + escapeHtml(team.name) + '</h4>' +
+                '<div style="font-size:12px;color:var(--text-secondary);">状态: ' + (statusLabel[team.status] || team.status) + '</div>' +
+                '</div>' +
+                '</div>' +
+                '<div style="font-size:13px;color:var(--text-secondary);">' + escapeHtml(team.description) + '</div>' +
+                (team.disabledReason ? '<div style="font-size:12px;color:#f59e0b;margin-top:4px;">停用原因: ' + escapeHtml(team.disabledReason) + '</div>' : '') +
+                '</div>';
+
+            html += '<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);">' +
+                '<h4 style="margin:0 0 8px;">队长信息</h4>' +
+                (leader ?
+                '<div style="font-size:13px;">' +
+                '<div><b>' + escapeHtml(leader.nickname) + '</b> <span style="font-size:11px;color:var(--text-secondary);">#' + leader.id + '</span></div>' +
+                '<div style="font-size:12px;color:var(--text-secondary);">' + escapeHtml(leader.email) + (leader.phone ? ' | ' + leader.phone : '') + '</div>' +
+                '</div>' : '<div style="font-size:13px;color:var(--text-secondary);">队长信息已删除</div>') +
+                '</div>';
+
+            html += '<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);">' +
+                '<h4 style="margin:0 0 8px;">成员列表 (' + members.length + '人)</h4>' +
+                '<div>' + members.map(function(m) {
+                    return '<div style="font-size:13px;padding:4px 0;border-bottom:1px dashed var(--border);">' +
+                        '<span>' + escapeHtml(m.userId + ': ') + '</span>' +
+                        (roleLabel[m.role] || m.role) +
+                        '<span style="font-size:11px;color:var(--text-secondary);margin-left:8px;">加入于 ' + new Date(m.joinedAt).toLocaleDateString('zh-CN') + '</span>' +
+                        '</div>';
+                }).join('') + '</div>' +
+                '</div>';
+
+            html += '<div>' +
+                '<h4 style="margin:0 0 8px;">关联活动 (' + activities.length + '个)</h4>' +
+                '<div>' + activities.map(function(a) {
+                    return '<div style="font-size:13px;padding:4px 0;border-bottom:1px dashed var(--border);">' +
+                        '<span style="color:var(--primary);">' + escapeHtml(a.title) + '</span>' +
+                        '<span style="font-size:11px;color:var(--text-secondary);margin-left:8px;">#' + a.id + ' | ' + a.status + '</span>' +
+                        '</div>';
+                }).join('') + '</div>' +
+                '</div>';
+
+            content.innerHTML = html;
+        } catch (err) {
+            content.innerHTML = '<p style="text-align:center;color:var(--danger);padding:16px;">加载失败: ' + escapeHtml(err.message) + '</p>';
+        }
+    },
+
+    disableTeam: function(teamId, teamName) {
+        var reason = prompt('请输入停用原因（必填）:');
+        if (!reason || !reason.trim()) return toast('停用原因不能为空', 'error');
+
+        var self = this;
+        api('/admin/teams/' + teamId + '/disable', {
+            method: 'PUT',
+            body: { reason: reason.trim() }
+        }).then(function() {
+            toast('已停用小队 ' + teamName);
+            self.loadTeams();
+        }).catch(function(err) {
+            toast(err.message, 'error');
+        });
+    },
+
+    restoreTeam: function(teamId) {
+        if (!confirm('确定恢复此小队吗？')) return;
+        var self = this;
+        api('/admin/teams/' + teamId + '/restore', { method: 'PUT' })
+            .then(function() {
+                toast('小队已恢复');
+                self.loadTeams();
             })
             .catch(function(err) { toast(err.message, 'error'); });
     },
