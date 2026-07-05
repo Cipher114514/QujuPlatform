@@ -62,9 +62,9 @@ public class FriendshipService {
             throw new BusinessException("已发送好友请求，请等待对方处理");
         }
 
-        // 检查对方是否已向你发送了请求（如果是，则自动接受）
         if (friendshipRepository.hasPendingRequest(targetUserId, currentUserId)) {
-            Friendship existing = friendshipRepository.findBetweenUsers(currentUserId, targetUserId)
+            // 使用新方法获取已接受的好友关系
+            Friendship existing = friendshipRepository.findAcceptedFriendshipBetween(currentUserId, targetUserId)
                     .orElseThrow(() -> new BusinessException("好友请求不存在"));
             existing.setStatus("ACCEPTED");
             friendshipRepository.save(existing);
@@ -120,10 +120,17 @@ public class FriendshipService {
      * 获取好友列表
      */
     public List<FriendResponse> getFriends(Long userId) {
-        List<Friendship> friendships = friendshipRepository.findAcceptedFriendships(userId);
+        List<Friendship> friendships = friendshipRepository.findAcceptedFriendshipsExcludingBlocked(userId);
         return friendships.stream()
-                .map(f -> toFriendResponse(f, userId))
-                .collect(Collectors.toList());
+            .collect(Collectors.toMap(
+                    f -> f.getFromUserId().equals(userId) ? f.getToUserId() : f.getFromUserId(),
+                    f -> toFriendResponse(f, userId),
+                    (existing, replacement) -> existing,  // 保留先出现的
+                    LinkedHashMap::new
+            ))
+            .values()
+            .stream()
+            .collect(Collectors.toList());
     }
 
     /**
@@ -142,7 +149,8 @@ public class FriendshipService {
         String group = getGroupForUser(friendship, currentUserId);
         
         // 检查当前用户是否拉黑了对方
-        boolean isBlocked = isBlockedBy(friend.getId(), currentUserId);
+        boolean isBlocked = "BLOCKED".equals(friendship.getBlockStatus()) 
+            && currentUserId.equals(friendship.getBlockedBy());
 
         return FriendResponse.builder()
                 .id(friend.getId())
@@ -214,50 +222,50 @@ public class FriendshipService {
      */
     @Transactional
     public void blockUser(Long currentUserId, Long targetUserId) {
-        // 不能拉黑自己
         if (currentUserId.equals(targetUserId)) {
             throw new BusinessException("不能拉黑自己");
         }
 
-        // 检查目标用户是否存在
         if (!userRepository.existsById(targetUserId)) {
             throw new BusinessException("用户不存在");
         }
 
         // 检查是否已经拉黑
-        Friendship existing = friendshipRepository.findBetweenUsers(currentUserId, targetUserId)
-                .orElse(null);
-
-        if (existing != null && isBlockedBy(targetUserId, currentUserId)) {
+        if (friendshipRepository.isBlockedBy(currentUserId, targetUserId)) {
             throw new BusinessException("已经拉黑了该用户");
         }
 
-        Friendship friendship;
-        if (existing != null) {
-            friendship = existing;
-            // 如果是好友关系，解除好友关系（将status改为非ACCEPTED状态）
-            if ("ACCEPTED".equals(friendship.getStatus())) {
-                friendship.setStatus("BLOCKED");
-                log.info("拉黑并解除好友关系: {} -> {}", currentUserId, targetUserId);
-            }
-        } else {
-            // 不存在关系记录，新建一条
-            // 注意：unique约束是 (fromUserId, toUserId)，所以需要保证方向
-            // 约定：从当前用户到目标用户
-            friendship = Friendship.builder()
+        // 获取所有相关记录（包括双向的）
+        List<Friendship> friendships = friendshipRepository.findBetweenUsersList(currentUserId, targetUserId);
+        
+        if (friendships.isEmpty()) {
+            // 没有记录，新建一条
+            Friendship friendship = Friendship.builder()
                     .fromUserId(currentUserId)
                     .toUserId(targetUserId)
-                    .status("BLOCKED") // 状态设为BLOCKED表示已被拉黑的关系
+                    .status("BLOCKED")
+                    .blockStatus("BLOCKED")
+                    .blockedBy(currentUserId)
+                    .blockedAt(LocalDateTime.now())
                     .build();
+            friendshipRepository.save(friendship);
+            log.info("拉黑用户(新建): {} -> {}", currentUserId, targetUserId);
+            return;
         }
 
-        // 设置拉黑信息
-        friendship.setBlockStatus("BLOCKED");
-        friendship.setBlockedBy(currentUserId);
-        friendship.setBlockedAt(LocalDateTime.now());
-
-        friendshipRepository.save(friendship);
-        log.info("拉黑用户: {} -> {}", currentUserId, targetUserId);
+        // 遍历所有记录，标记为拉黑
+        for (Friendship f : friendships) {
+            f.setBlockStatus("BLOCKED");
+            f.setBlockedBy(currentUserId);
+            f.setBlockedAt(LocalDateTime.now());
+            if ("ACCEPTED".equals(f.getStatus())) {
+                f.setStatus("BLOCKED");
+                log.info("拉黑并解除好友关系: {} -> {}", currentUserId, targetUserId);
+            }
+            friendshipRepository.save(f);
+        }
+        
+        log.info("拉黑用户(处理{}条记录): {} -> {}", friendships.size(), currentUserId, targetUserId);
     }
 
     /**
@@ -265,25 +273,33 @@ public class FriendshipService {
      */
     @Transactional
     public void unblockUser(Long currentUserId, Long targetUserId) {
-        Friendship friendship = friendshipRepository.findBetweenUsers(currentUserId, targetUserId)
-                .orElseThrow(() -> new BusinessException("未找到与该用户的关系"));
-
-        // 验证是否被当前用户拉黑
-        if (!isBlockedBy(targetUserId, currentUserId)) {
+        // 查找所有相关记录
+        List<Friendship> friendships = friendshipRepository.findBetweenUsersList(currentUserId, targetUserId);
+        
+        if (friendships.isEmpty()) {
+            throw new BusinessException("未找到与该用户的关系");
+        }
+        
+        // 检查是否有被当前用户拉黑的记录
+        boolean hasBlocked = friendships.stream().anyMatch(f -> 
+                "BLOCKED".equals(f.getBlockStatus()) && currentUserId.equals(f.getBlockedBy()));
+        
+        if (!hasBlocked) {
             throw new BusinessException("未拉黑该用户");
         }
-
-        friendship.setBlockStatus("NORMAL");
-        friendship.setBlockedBy(null);
-        friendship.setBlockedAt(null);
-
-        // 如果是BLOCKED状态（好友关系被解除），重置为NORMAL
-        if ("BLOCKED".equals(friendship.getStatus())) {
-            friendship.setStatus("NORMAL");
+        
+        // 清除所有记录的拉黑状态
+        for (Friendship f : friendships) {
+            f.setBlockStatus("NORMAL");
+            f.setBlockedBy(null);
+            f.setBlockedAt(null);
+            if ("BLOCKED".equals(f.getStatus())) {
+                f.setStatus("NORMAL");
+            }
+            friendshipRepository.save(f);
         }
-
-        friendshipRepository.save(friendship);
-        log.info("取消拉黑: {} -> {}", currentUserId, targetUserId);
+        
+        log.info("取消拉黑: {} -> {}, 处理 {} 条记录", currentUserId, targetUserId, friendships.size());
     }
 
     /**
@@ -292,8 +308,15 @@ public class FriendshipService {
     public List<FriendResponse> getBlockList(Long userId) {
         List<Friendship> blocked = friendshipRepository.findBlockedByUser(userId);
         return blocked.stream()
-                .map(f -> convertToBlockResponse(f, userId))
-                .collect(Collectors.toList());
+            .collect(Collectors.toMap(
+                    f -> f.getFromUserId().equals(userId) ? f.getToUserId() : f.getFromUserId(),
+                    f -> convertToBlockResponse(f, userId),
+                    (existing, replacement) -> existing,
+                    LinkedHashMap::new
+            ))
+            .values()
+            .stream()
+            .collect(Collectors.toList());
     }
 
     /**
@@ -321,32 +344,14 @@ public class FriendshipService {
      * 检查用户A是否被用户B拉黑
      */
     private boolean isBlockedBy(Long userIdA, Long userIdB) {
-        // 查找 userIdB -> userIdA 的关系（即B发起的，目标是A）
-        Friendship friendship = friendshipRepository.findBetweenUsers(userIdB, userIdA)
-                .orElse(null);
-        
-        if (friendship == null) {
-            return false;
-        }
-        
-        // 业务规则：只有拉黑状态为 BLOCKED 且拉黑发起人是 userIdB
-        return "BLOCKED".equals(friendship.getBlockStatus()) 
-               && userIdB.equals(friendship.getBlockedBy());
+        return friendshipRepository.isBlockedBy(userIdB, userIdA);
     }
 
     /**
      * 检查用户A是否拉黑了用户B
      */
     private boolean hasBlocked(Long userIdA, Long userIdB) {
-        Friendship friendship = friendshipRepository.findBetweenUsers(userIdA, userIdB)
-                .orElse(null);
-        
-        if (friendship == null) {
-            return false;
-        }
-        
-        return "BLOCKED".equals(friendship.getBlockStatus()) 
-               && userIdA.equals(friendship.getBlockedBy());
+        return friendshipRepository.isBlockedBy(userIdA, userIdB);
     }
 
     /**
@@ -387,41 +392,41 @@ public class FriendshipService {
      * 获取已接受的好友关系
      */
     private Friendship getAcceptedFriendship(Long userId1, Long userId2) {
-        Friendship friendship = friendshipRepository.findBetweenUsers(userId1, userId2)
+        return friendshipRepository.findAcceptedFriendshipBetween(userId1, userId2)
                 .orElseThrow(() -> new BusinessException("不是好友关系"));
-        
-        if (!"ACCEPTED".equals(friendship.getStatus())) {
-            throw new BusinessException("不是好友关系");
-        }
-        
-        return friendship;
     }
 
     /**
      * 按分组获取好友列表
      */
     public List<FriendResponse> getFriendsByGroup(Long userId, String group) {
-        List<Friendship> friendships = friendshipRepository.findAcceptedFriendships(userId);
+        List<Friendship> friendships = friendshipRepository.findAcceptedFriendshipsExcludingBlocked(userId);
         
         return friendships.stream()
-                .filter(f -> {
-                    String friendGroup = getGroupForUser(f, userId);
-                    // 如果group参数为null，返回所有未分组的好友
-                    if (group == null || group.isEmpty()) {
-                        return friendGroup == null || friendGroup.isEmpty();
-                    }
-                    return group.equals(friendGroup);
-                })
-                .map(f -> toFriendResponse(f, userId))
-                .collect(Collectors.toList());
+            .filter(f -> {
+                String friendGroup = getGroupForUser(f, userId);
+                if (group == null || group.isEmpty()) {
+                    return friendGroup == null || friendGroup.isEmpty();
+                }
+                return group.equals(friendGroup);
+            })
+            .collect(Collectors.toMap(
+                    f -> f.getFromUserId().equals(userId) ? f.getToUserId() : f.getFromUserId(),
+                    f -> toFriendResponse(f, userId),
+                    (existing, replacement) -> existing,
+                    LinkedHashMap::new
+            ))
+            .values()
+            .stream()
+            .collect(Collectors.toList());
     }
 
     /**
      * 获取当前用户的所有分组标签
      */
     public List<String> getGroups(Long userId) {
-        List<String> fromGroups = friendshipRepository.findGroupsFromUser(userId);
-        List<String> toGroups = friendshipRepository.findGroupsToUser(userId);
+        List<String> fromGroups = friendshipRepository.findGroupsFromUserExcludingBlocked(userId);
+        List<String> toGroups = friendshipRepository.findGroupsToUserExcludingBlocked(userId);
         Set<String> allGroups = new HashSet<>();
         allGroups.addAll(fromGroups);
         allGroups.addAll(toGroups);
