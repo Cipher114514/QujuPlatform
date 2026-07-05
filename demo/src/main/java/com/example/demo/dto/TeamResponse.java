@@ -28,7 +28,10 @@ public class TeamResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    /** 当前用户在该小队的角色：null(未加入), LEADER(队长), MEMBER(成员) */
+    /** 群公告 */
+    private String announcement;
+
+    /** 当前用户在该小队的角色：null(未加入), leader(队长), admin(管理员), member(成员) */
     private String userRole;
 
     /** 当前用户的申请状态：null(无申请), PENDING(待审核), REJECTED(已拒绝), APPROVED(已批准) */

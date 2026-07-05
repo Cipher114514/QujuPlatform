@@ -167,7 +167,18 @@ var TeamAPI = {
     uploadPhoto:   function(id, imageUrl, description) { return api('/teams/' + id + '/album', { method:'POST', body:{ imageUrl: imageUrl, description: description } }); },
     deletePhoto:   function(id, photoId) { return api('/teams/' + id + '/album/' + photoId, { method:'DELETE' }); },
     // 解散
-    disband:       function(id) { return api('/teams/' + id + '/disband', { method:'POST' }); }
+    disband:       function(id) { return api('/teams/' + id + '/disband', { method:'POST' }); },
+    // 角色管理
+    appointAdmin:  function(id, userId) { return api('/teams/' + id + '/members/' + userId + '/appoint-admin', { method:'PUT' }); },
+    removeAdmin:   function(id, userId) { return api('/teams/' + id + '/members/' + userId + '/remove-admin', { method:'PUT' }); },
+    // 群公告
+    updateAnnouncement: function(id, announcement) { return api('/teams/' + id + '/announcement', { method:'PUT', body:{ announcement: announcement } }); },
+    // 群投票
+    createVote:    function(id, body) { return api('/teams/' + id + '/votes', { method:'POST', body: body }); },
+    castVote:      function(id, voteId, body) { return api('/teams/' + id + '/votes/' + voteId, { method:'POST', body: body }); },
+    getVotes:      function(id) { return api('/teams/' + id + '/votes'); },
+    getVoteDetail: function(id, voteId) { return api('/teams/' + id + '/votes/' + voteId); },
+    closeVote:     function(id, voteId) { return api('/teams/' + id + '/votes/' + voteId + '/close', { method:'PUT' }); }
 };
 
 // ===== 活动评价与复盘模块 (P1) =====

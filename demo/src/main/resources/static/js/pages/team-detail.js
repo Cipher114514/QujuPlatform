@@ -56,13 +56,13 @@ Router.register('/team/:id', {
                 renderTeamInfo();
                 loadMembers();
 
-                // 成员/队长可见队内活动
-                if (teamData.userRole === 'leader' || teamData.userRole === 'member') {
+                // 成员/队长/管理员可见队内活动
+                if (teamData.userRole === 'leader' || teamData.userRole === 'admin' || teamData.userRole === 'member') {
                     document.getElementById('activitiesTab').style.display = 'block';
                 }
 
-                // 队长显示申请列表（仅审核小队）
-                if (teamData.userRole === 'leader' && !teamData.isPublic) {
+                // 队长和管理员显示申请列表（仅审核小队）
+                if ((teamData.userRole === 'leader' || teamData.userRole === 'admin') && !teamData.isPublic) {
                     document.getElementById('requestsTab').style.display = 'block';
                     loadRequests();
                 }
@@ -115,8 +115,15 @@ Router.register('/team/:id', {
                     <a href="#/team/${team.id}/chat" class="btn btn-primary">进入群聊</a>
                     <a href="#/team/${team.id}/create-activity" class="btn btn-outline">发布队内活动</a>
                     <a href="#/team/${team.id}/album" class="btn btn-outline">小队相册</a>
-                    ${!team.isPublic ? '<button class="btn btn-outline" onclick="showRequests()">入队申请</button>' : ''}
                     <button class="btn btn-danger" onclick="handleDisbandTeam(${team.id})">解散小队</button>
+                `;
+            } else if (team.userRole === 'admin') {
+                return `
+                    <a href="#/team/${team.id}/chat" class="btn btn-primary">进入群聊</a>
+                    <a href="#/team/${team.id}/create-activity" class="btn btn-outline">发布队内活动</a>
+                    <a href="#/team/${team.id}/album" class="btn btn-outline">小队相册</a>
+                    ${!team.isPublic ? '<button class="btn btn-outline" onclick="showRequests()">入队申请</button>' : ''}
+                    <button class="btn btn-outline" onclick="handleLeaveTeam()">退出小队</button>
                 `;
             } else if (team.userRole === 'member') {
                 return `
@@ -165,21 +172,37 @@ Router.register('/team/:id', {
                 return;
             }
 
-            container.innerHTML = members.map(member => `
+            container.innerHTML = members.map(member => {
+                var roleBadge = '';
+                if (member.role === 'leader') {
+                    roleBadge = '<span class="role-badge leader">队长</span>';
+                } else if (member.role === 'admin') {
+                    roleBadge = '<span class="role-badge admin">管理员</span>';
+                } else {
+                    roleBadge = '<span class="role-badge member">成员</span>';
+                }
+
+                var adminBtns = '';
+                if (teamData.userRole === 'leader' && member.role === 'member') {
+                    adminBtns = '<button class="btn btn-sm btn-outline" onclick="handleAppointAdmin(' + member.userId + ')" style="margin-left:auto;">设为管理员</button>';
+                } else if (teamData.userRole === 'leader' && member.role === 'admin') {
+                    adminBtns = '<button class="btn btn-sm btn-outline" onclick="handleRemoveAdmin(' + member.userId + ')" style="margin-left:auto;">取消管理员</button>';
+                }
+
+                return `
                 <div class="member-item">
                     <img src="${member.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + member.userId}"
                          alt="${member.nickname}" class="member-avatar" />
                     <div class="member-info">
                         <div class="member-name-row">
                             <a href="#/follows?userId=${member.userId}" class="member-name">${member.nickname}</a>
-                            ${member.role === 'leader'
-                                ? '<span class="role-badge leader">队长</span>'
-                                : '<span class="role-badge member">成员</span>'}
+                            ${roleBadge}
                         </div>
                         <p class="member-joined">加入于 ${formatDate(member.joinedAt)}</p>
                     </div>
-                </div>
-            `).join('');
+                    ${adminBtns}
+                </div>`;
+            }).join('');
         }
 
         // 加载入队申请（仅队长）
@@ -345,11 +368,35 @@ Router.register('/team/:id', {
             loadRequests();
         };
 
+        // 任命管理员
+        window.handleAppointAdmin = async function(userId) {
+            if (!confirm('确定要将该成员设为管理员吗？')) return;
+            try {
+                await TeamAPI.appointAdmin(teamId, userId);
+                toast('已设为管理员', 'success');
+                loadMembers();
+            } catch (e) {
+                toast(e.message || '操作失败', 'error');
+            }
+        };
+
+        // 免除管理员
+        window.handleRemoveAdmin = async function(userId) {
+            if (!confirm('确定要取消该成员的管理员身份吗？')) return;
+            try {
+                await TeamAPI.removeAdmin(teamId, userId);
+                toast('已取消管理员', 'success');
+                loadMembers();
+            } catch (e) {
+                toast(e.message || '操作失败', 'error');
+            }
+        };
+
         // 标签切换
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 const tab = this.dataset.tab;
-                if (tab === 'requests' && teamData.userRole !== 'leader') return;
+                if (tab === 'requests' && teamData.userRole !== 'leader' && teamData.userRole !== 'admin') return;
 
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');

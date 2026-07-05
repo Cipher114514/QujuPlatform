@@ -13,6 +13,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/teams")
@@ -158,14 +159,15 @@ public class TeamController {
             @AuthenticationPrincipal User currentUser,
             @PathVariable Long id,
             @RequestBody SendMessageRequest req) {
-        log.info("发送小队群聊消息: teamId={}, senderId={}", id, currentUser.getId());
-        return Result.ok(teamService.sendTeamMessage(id, currentUser.getId(), req.getContent()));
+        log.info("发送小队群聊消息: teamId={}, senderId={}, type={}", id, currentUser.getId(), req.getType());
+        return Result.ok(teamService.sendTeamMessage(id, currentUser.getId(),
+                req.getContent(), req.getType(), req.getMetadata()));
     }
 
     // ==================== 队内活动 ====================
 
     /**
-     * 创建队内专属活动（仅队长）
+     * 创建队内专属活动（队长或管理员）
      */
     @PostMapping("/{id}/activities")
     public Result<?> createTeamActivity(
@@ -244,8 +246,118 @@ public class TeamController {
         return Result.ok("小队已解散", null);
     }
 
+    // ==================== 角色管理 ====================
+
+    /**
+     * 任命管理员（仅队长）
+     */
+    @PutMapping("/{id}/members/{userId}/appoint-admin")
+    public Result<Void> appointAdmin(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable("id") Long id,
+            @PathVariable("userId") Long userId) {
+        log.info("任命管理员: teamId={}, leaderId={}, userId={}", id, currentUser.getId(), userId);
+        teamService.appointAdmin(id, currentUser.getId(), userId);
+        return Result.ok("已任命为管理员", null);
+    }
+
+    /**
+     * 免除管理员（仅队长）
+     */
+    @PutMapping("/{id}/members/{userId}/remove-admin")
+    public Result<Void> removeAdmin(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable("id") Long id,
+            @PathVariable("userId") Long userId) {
+        log.info("免除管理员: teamId={}, leaderId={}, userId={}", id, currentUser.getId(), userId);
+        teamService.removeAdmin(id, currentUser.getId(), userId);
+        return Result.ok("已免除管理员", null);
+    }
+
+    // ==================== 群公告 ====================
+
+    /**
+     * 更新群公告（队长或管理员）
+     */
+    @PutMapping("/{id}/announcement")
+    public Result<Void> updateAnnouncement(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable("id") Long id,
+            @RequestBody Map<String, String> body) {
+        String announcement = body.get("announcement");
+        log.info("更新群公告: teamId={}, userId={}", id, currentUser.getId());
+        teamService.updateAnnouncement(id, currentUser.getId(), announcement);
+        return Result.ok("公告已更新", null);
+    }
+
+    // ==================== 群投票 ====================
+
+    /**
+     * 创建群投票
+     */
+    @PostMapping("/{id}/votes")
+    public Result<VoteResponse> createVote(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable("id") Long id,
+            @Valid @RequestBody CreateVoteRequest request) {
+        log.info("创建群投票: teamId={}, userId={}", id, currentUser.getId());
+        return Result.ok(teamService.createVote(id, currentUser.getId(), request));
+    }
+
+    /**
+     * 参与投票
+     */
+    @PostMapping("/{id}/votes/{voteId}")
+    public Result<VoteResponse> castVote(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable("id") Long id,
+            @PathVariable("voteId") Long voteId,
+            @Valid @RequestBody CastVoteRequest request) {
+        log.info("参与投票: teamId={}, voteId={}, userId={}", id, voteId, currentUser.getId());
+        return Result.ok(teamService.castVote(id, voteId, currentUser.getId(), request));
+    }
+
+    /**
+     * 获取投票列表
+     */
+    @GetMapping("/{id}/votes")
+    public Result<List<VoteResponse>> getVotes(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable("id") Long id) {
+        log.info("获取投票列表: teamId={}", id);
+        return Result.ok(teamService.getVotes(id, currentUser.getId()));
+    }
+
+    /**
+     * 获取单个投票详情
+     */
+    @GetMapping("/{id}/votes/{voteId}")
+    public Result<VoteResponse> getVoteDetail(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable("id") Long id,
+            @PathVariable("voteId") Long voteId) {
+        log.info("获取投票详情: teamId={}, voteId={}", id, voteId);
+        return Result.ok(teamService.getVoteDetail(id, voteId, currentUser.getId()));
+    }
+
+    /**
+     * 关闭投票（发起者、队长或管理员）
+     */
+    @PutMapping("/{id}/votes/{voteId}/close")
+    public Result<Void> closeVote(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable("id") Long id,
+            @PathVariable("voteId") Long voteId) {
+        log.info("关闭投票: teamId={}, voteId={}, userId={}", id, voteId, currentUser.getId());
+        teamService.closeVote(id, voteId, currentUser.getId());
+        return Result.ok("投票已关闭", null);
+    }
+
     @Data
     static class SendMessageRequest {
         private String content;
+        private String type;
+        private String metadata;
+        private String fileName;
     }
 }

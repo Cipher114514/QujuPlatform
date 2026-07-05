@@ -117,9 +117,9 @@ Router.register('/team/:id/create-activity', {
                 document.getElementById('teamActSubtitle').textContent =
                     '「' + team.name + '」队内专属 · 仅队员可见';
 
-                // 非队长重定向
-                if (team.userRole !== 'leader') {
-                    toast('仅队长可发布队内活动', 'error');
+                // 非队长/管理员重定向
+                if (team.userRole !== 'leader' && team.userRole !== 'admin') {
+                    toast('仅队长或管理员可发布队内活动', 'error');
                     Router.navigate('/team/' + teamId);
                     return;
                 }

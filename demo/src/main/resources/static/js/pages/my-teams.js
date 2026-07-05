@@ -78,7 +78,7 @@ Router.register('/my-teams', {
         // 处理小队数据，分离我加入的和我创建的
         function processTeams() {
             createdTeams = myTeams.filter(t => t.userRole === 'leader');
-            const joined = myTeams.filter(t => t.userRole === 'member');
+            const joined = myTeams.filter(t => t.userRole === 'member' || t.userRole === 'admin');
 
             renderJoinedTeams(joined);
             renderCreatedTeams();
@@ -104,6 +104,7 @@ Router.register('/my-teams', {
                         <h3 class="team-name">
                             <a href="#/team/${team.id}">${team.name}</a>
                             ${team.isPublic ? '<span class="team-type-badge public">公开</span>' : '<span class="team-type-badge private">审核</span>'}
+                            ${team.userRole === 'admin' ? '<span class="role-badge admin" style="font-size:10px;">管理员</span>' : ''}
                         </h3>
                         <p class="team-desc">${team.description || '暂无简介'}</p>
                     </div>

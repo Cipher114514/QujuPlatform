@@ -36,6 +36,10 @@ public class Message {
     @Builder.Default
     private String status = "DELIVERED";
 
+    /** 扩展元数据(JSON): 用于@提醒、文件URL等 */
+    @Column(length = 2000)
+    private String metadata;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime sentAt;
 
