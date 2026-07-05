@@ -81,6 +81,11 @@ public class User {
     /** 登录临时锁定截止时间 */
     private LocalDateTime lockedUntil;
 
+    @Column(unique = true, length = 100)
+    private String activationToken;
+
+    private LocalDateTime activationTokenExpiresAt;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
