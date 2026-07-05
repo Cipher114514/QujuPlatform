@@ -379,12 +379,12 @@ const ChatRoomPage = {
         var self = this;
         var overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;display:flex;justify-content:center;align-items:center;';
-        overlay.innerHTML = '<div style="background:var(--card);border-radius:12px;padding:20px;width:90%;max-width:380px;max-height:70vh;display:flex;flex-direction:column;">'
+        overlay.innerHTML = '<div style="background:var(--card);border-radius:12px;padding:20px;width:90%;max-width:380px;max-height:70vh;overflow-y:auto;">'
             + '<h3 style="margin:0 0 12px;">转发消息</h3>'
-            + '<div style="margin-bottom:8px;font-weight:600;font-size:13px;color:var(--text-secondary);">转发到好友</div>'
-            + '<div id="forwardFriendList" style="flex:1;max-height:250px;overflow-y:auto;margin-bottom:12px;">加载中...</div>'
-            + '<div style="margin-bottom:8px;font-weight:600;font-size:13px;color:var(--text-secondary);">转发到小队群聊</div>'
-            + '<div id="forwardTeamList" style="max-height:150px;overflow-y:auto;margin-bottom:12px;">加载中...</div>'
+            + '<div style="margin-bottom:6px;font-weight:600;font-size:13px;color:var(--text-secondary);">转发到好友</div>'
+            + '<div id="forwardFriendList" style="max-height:200px;overflow-y:auto;margin-bottom:16px;">加载中...</div>'
+            + '<div style="margin-bottom:6px;font-weight:600;font-size:13px;color:var(--text-secondary);">转发到小队群聊</div>'
+            + '<div id="forwardTeamList" style="max-height:120px;overflow-y:auto;margin-bottom:12px;">加载中...</div>'
             + '<div style="text-align:right;"><button class="btn btn-outline btn-sm" id="forwardCancel">取消</button></div>'
             + '</div>';
         document.body.appendChild(overlay);

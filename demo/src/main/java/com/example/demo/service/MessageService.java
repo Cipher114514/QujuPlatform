@@ -243,6 +243,7 @@ public class MessageService {
 
         msg.setRecalledAt(LocalDateTime.now());
         msg.setContent("消息已被撤回");
+        msg.setType("RECALL");
         msg.setFileUrl(null);
         msg.setFileName(null);
         msg.setFileSize(null);

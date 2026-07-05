@@ -386,12 +386,12 @@ Router.register('/team/:id/chat', {
         var self = this;
         var overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;display:flex;justify-content:center;align-items:center;';
-        overlay.innerHTML = '<div style="background:var(--card);border-radius:12px;padding:20px;width:90%;max-width:380px;max-height:70vh;display:flex;flex-direction:column;">'
+        overlay.innerHTML = '<div style="background:var(--card);border-radius:12px;padding:20px;width:90%;max-width:380px;max-height:70vh;overflow-y:auto;">'
             + '<h3 style="margin:0 0 12px;">转发消息</h3>'
-            + '<div style="margin-bottom:8px;font-weight:600;font-size:13px;color:var(--text-secondary);">转发到好友</div>'
-            + '<div id="forwardFriendList" style="flex:1;max-height:250px;overflow-y:auto;margin-bottom:12px;">加载中...</div>'
-            + '<div style="margin-bottom:8px;font-weight:600;font-size:13px;color:var(--text-secondary);">转发到小队群聊</div>'
-            + '<div id="forwardTeamList" style="max-height:150px;overflow-y:auto;margin-bottom:12px;">加载中...</div>'
+            + '<div style="margin-bottom:6px;font-weight:600;font-size:13px;color:var(--text-secondary);">转发到好友</div>'
+            + '<div id="forwardFriendList" style="max-height:200px;overflow-y:auto;margin-bottom:16px;">加载中...</div>'
+            + '<div style="margin-bottom:6px;font-weight:600;font-size:13px;color:var(--text-secondary);">转发到小队群聊</div>'
+            + '<div id="forwardTeamList" style="max-height:120px;overflow-y:auto;margin-bottom:12px;">加载中...</div>'
             + '<div style="text-align:right;"><button class="btn btn-outline btn-sm" id="forwardCancel">取消</button></div>'
             + '</div>';
         document.body.appendChild(overlay);
@@ -596,7 +596,7 @@ Router.register('/team/:id/chat', {
                 var f = files[i];
                 var sizeStr = f.fileSize ? (f.fileSize < 1024 * 1024 ? Math.round(f.fileSize / 1024) + 'KB' : (f.fileSize / (1024 * 1024)).toFixed(2) + 'MB') : '';
                 html += '<div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">'
-                    + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-right:8px;">'
+                    + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-right:8px;color:var(--primary);">'
                     + '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>'
                     + '<polyline points="14 2 14 8 20 8"/>'
                     + '<line x1="16" y1="13" x2="8" y2="13"/>'
@@ -688,7 +688,7 @@ Router.register('/team/:id/chat', {
                     + (!isMe ? '<div class="msg-sender-name">' + self._escapeHtml(m.senderNickname || '用户' + m.senderId) + '</div>' : '')
                     + '<div class="msg-bubble ' + (isMe ? 'bubble-me' : 'bubble-other') + '" data-msgid="' + m.id + '" style="max-width:250px;">'
                     + '<div style="display:flex;align-items:center;gap:10px;">'
-                    + '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="' + (isMe ? 'rgba(255,255,255,0.8)' : 'var(--primary)') + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">'
+                    + '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:' + (isMe ? 'rgba(255,255,255,0.8)' : 'var(--primary)') + ';">'
                     + '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>'
                     + '<polyline points="14 2 14 8 20 8"/>'
                     + '<line x1="16" y1="13" x2="8" y2="13"/>'

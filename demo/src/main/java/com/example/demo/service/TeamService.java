@@ -436,6 +436,7 @@ public class TeamService {
 
         msg.setRecalledAt(LocalDateTime.now());
         msg.setContent("消息已被撤回");
+        msg.setType("RECALL");
         msg.setFileUrl(null);
         msg.setFileName(null);
         msg.setFileSize(null);
@@ -551,6 +552,7 @@ public class TeamService {
 
         msg.setRecalledAt(LocalDateTime.now());
         msg.setContent("文件已被删除");
+        msg.setType("RECALL");
         msg.setFileUrl(null);
         msg.setFileName(null);
         msg.setFileSize(null);
