@@ -100,4 +100,106 @@ public class FriendsController {
         boolean areFriends = friendshipService.areFriends(currentUser.getId(), userId);
         return Result.ok(areFriends);
     }
+
+    // ==================== 黑名单功能 ====================
+
+    /**
+     * 拉黑用户
+     */
+    @PostMapping("/block")
+    public Result<Void> blockUser(
+            @AuthenticationPrincipal User currentUser,
+            @Valid @RequestBody BlockRequest req) {
+        log.info("拉黑用户: userId={}, targetUserId={}", currentUser.getId(), req.getUserId());
+        friendshipService.blockUser(currentUser.getId(), req.getUserId());
+        return Result.ok("拉黑成功", null);
+    }
+
+    /**
+     * 取消拉黑
+     */
+    @DeleteMapping("/block/{userId}")
+    public Result<Void> unblockUser(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long userId) {
+        log.info("取消拉黑: userId={}, targetUserId={}", currentUser.getId(), userId);
+        friendshipService.unblockUser(currentUser.getId(), userId);
+        return Result.ok("取消拉黑成功", null);
+    }
+
+    /**
+     * 检查是否被拉黑
+     */
+    @GetMapping("/block/check/{userId}")
+    public Result<Boolean> checkBlocked(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long userId) {
+        boolean blocked = friendshipService.isBlocked(currentUser.getId(), userId);
+        return Result.ok(blocked);
+    }
+
+    /**
+     * 获取黑名单列表（拉黑了我的人？还是我拉黑的人？）
+     * 这里实现：获取当前用户拉黑的所有人
+     */
+    @GetMapping("/block/list")
+    public Result<List<FriendResponse>> getBlockList(
+            @AuthenticationPrincipal User currentUser) {
+        // TODO: 实现获取黑名单列表
+        // 需要 FriendshipRepository 支持查询 blockedBy = currentUser.id 且 blockStatus = BLOCKED
+        log.info("获取黑名单列表: userId={}", currentUser.getId());
+        List<FriendResponse> blockList = friendshipService.getBlockList(currentUser.getId());
+        return Result.ok(blockList);
+    }
+
+    // ==================== 备注分组功能 ====================
+
+    /**
+     * 更新好友备注
+     */
+    @PutMapping("/remark")
+    public Result<Void> updateRemark(
+            @AuthenticationPrincipal User currentUser,
+            @Valid @RequestBody RemarkUpdateRequest req) {
+        log.info("更新好友备注: userId={}, friendId={}, remark={}", 
+                currentUser.getId(), req.getUserId(), req.getRemark());
+        friendshipService.updateRemark(currentUser.getId(), req.getUserId(), req.getRemark());
+        return Result.ok("备注更新成功", null);
+    }
+
+    /**
+     * 更新好友分组
+     */
+    @PutMapping("/group")
+    public Result<Void> updateGroup(
+            @AuthenticationPrincipal User currentUser,
+            @Valid @RequestBody GroupUpdateRequest req) {
+        log.info("更新好友分组: userId={}, friendId={}, group={}", 
+                currentUser.getId(), req.getUserId(), req.getGroup());
+        friendshipService.updateGroup(currentUser.getId(), req.getUserId(), req.getGroup());
+        return Result.ok("分组更新成功", null);
+    }
+
+    /**
+     * 按分组筛选好友列表
+     */
+    @GetMapping("/group/{group}")
+    public Result<List<FriendResponse>> getFriendsByGroup(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable(required = false) String group) {
+        log.info("按分组获取好友: userId={}, group={}", currentUser.getId(), group);
+        List<FriendResponse> friends = friendshipService.getFriendsByGroup(currentUser.getId(), group);
+        return Result.ok(friends);
+    }
+
+    /**
+     * 获取所有分组列表（当前用户的所有分组标签）
+     */
+    @GetMapping("/groups")
+    public Result<List<String>> getGroups(
+            @AuthenticationPrincipal User currentUser) {
+        log.info("获取分组列表: userId={}", currentUser.getId());
+        List<String> groups = friendshipService.getGroups(currentUser.getId());
+        return Result.ok(groups);
+    }
 }

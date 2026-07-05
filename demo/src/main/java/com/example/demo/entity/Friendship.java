@@ -33,6 +33,15 @@ public class Friendship {
     @Column(length = 100)
     private String toNote;
 
+    @Column(length = 20)
+    @Builder.Default
+    private String blockStatus = "NORMAL";
+
+    @Column(name = "blocked_by")
+    private Long blockedBy;
+
+    private LocalDateTime blockedAt;
+
     @Column(length = 50)
     private String fromGroup;
 
