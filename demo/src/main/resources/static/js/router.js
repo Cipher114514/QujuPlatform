@@ -139,10 +139,16 @@ const Router = {
         this.currentConfig = config;
         this.currentParams = params;
         document.title = (config.title || '趣聚') + ' - 趣聚';
-        document.getElementById('app').innerHTML = config.render(params);
+
+        var app = document.getElementById('app');
+        app.classList.add('page-enter');
+        app.innerHTML = config.render(params);
         if (config.init) config.init(params);
 
         // 滚动到顶部
         window.scrollTo(0, 0);
+
+        // 动画结束后移除 class
+        setTimeout(function() { app.classList.remove('page-enter'); }, 400);
     }
 };

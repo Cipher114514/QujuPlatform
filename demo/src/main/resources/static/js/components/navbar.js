@@ -100,6 +100,10 @@ var Navbar = {
                 ' + catHtml + '\
             </div>\
             <div class="sidebar-footer" id="sidebarFooter">\
+                <div class="sidebar-item" style="justify-content:space-between;cursor:default;">\
+                    <div style="display:flex;align-items:center;gap:8px;">🌓 主题</div>\
+                    <button class="theme-toggle" onclick="Navbar.toggleTheme();return false;" title="切换亮色/暗色模式" id="themeToggleBtn">🌓</button>\
+                </div>\
                 <a href="#/profile" class="sidebar-item' + (currentPath === '/profile' ? ' active' : '') + '" onclick="Navbar.closeMobile();">\
                     <span class="s-icon">👤</span>\
                     <span class="s-label">个人资料</span>\
@@ -145,5 +149,50 @@ var Navbar = {
         var cat = document.getElementById('cat-' + index);
         if (!cat) return;
         cat.classList.toggle('open');
+    },
+
+    // 主题切换
+    toggleTheme: function() {
+        var html = document.documentElement;
+        var current = html.getAttribute('data-theme');
+        var next = current === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', next);
+        localStorage.setItem('quju-theme', next);
+        this._updateThemeIcon(next);
+    },
+
+    _updateThemeIcon: function(theme) {
+        var btn = document.getElementById('themeToggleBtn');
+        if (btn) {
+            btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+        }
+    },
+
+    // 初始化主题
+    initTheme: function() {
+        var saved = localStorage.getItem('quju-theme');
+        var theme;
+        if (saved) {
+            theme = saved;
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            theme = 'dark';
+        } else {
+            theme = 'light';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+        this._updateThemeIcon(theme);
+
+        // 监听系统主题变化
+        if (window.matchMedia) {
+            var mq = window.matchMedia('(prefers-color-scheme: dark)');
+            var self = this;
+            mq.addEventListener('change', function(e) {
+                if (!localStorage.getItem('quju-theme')) {
+                    var t = e.matches ? 'dark' : 'light';
+                    document.documentElement.setAttribute('data-theme', t);
+                    self._updateThemeIcon(t);
+                }
+            });
+        }
     }
 };

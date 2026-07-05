@@ -103,11 +103,30 @@ Router.register('/create-activity', {
                         <div class="hint">用逗号分隔多个标签</div>
                     </div>
 
-                    <!-- 封面图片URL -->
+                    <!-- 封面上传 -->
                     <div class="form-group">
-                        <label>封面图片URL</label>
-                        <input type="text" id="actCover" placeholder="可选，填入图片链接"
-                            value="${escHtml(draft.coverImage || '')}">
+                        <label>封面图片</label>
+                        <div class="cover-upload-zone" id="coverUploadZone">
+                            <div class="cover-upload-drop" id="coverDropArea">
+                                <div class="cover-upload-icon">📷</div>
+                                <div class="cover-upload-text">拖拽图片到此处，或<span class="cover-upload-link">点击选择文件</span></div>
+                                <div class="cover-upload-hint">支持 JPG、PNG、WebP，最大 5MB</div>
+                                <input type="file" id="coverFileInput" accept="image/jpeg,image/png,image/webp" style="display:none;">
+                            </div>
+                            <div class="cover-upload-preview" id="coverPreview" style="display:none;">
+                                <img id="coverPreviewImg" src="" alt="封面预览">
+                                <div class="cover-preview-actions">
+                                    <button type="button" class="btn btn-sm btn-outline" id="btnChangeCover">更换图片</button>
+                                    <button type="button" class="btn btn-sm btn-outline" id="btnRemoveCover" style="color:var(--danger);border-color:var(--danger);">移除</button>
+                                </div>
+                            </div>
+                            <div class="cover-upload-progress" id="coverUploadProgress" style="display:none;">
+                                <div class="progress-bar-track"><div class="progress-bar-fill" id="coverProgressFill"></div></div>
+                                <span class="progress-text">上传中...</span>
+                            </div>
+                        </div>
+                        <input type="hidden" id="actCover" value="${escHtml(draft.coverImage || '')}">
+                        <div class="error-msg" id="errCover"></div>
                     </div>
 
                     <!-- 按钮 -->
@@ -227,6 +246,161 @@ function escHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ===== 封面图片上传 =====
+var MAX_COVER_SIZE = 5 * 1024 * 1024; // 5MB
+
+function initCoverUpload() {
+    var dropArea = document.getElementById('coverDropArea');
+    var fileInput = document.getElementById('coverFileInput');
+    var zone = document.getElementById('coverUploadZone');
+
+    if (!dropArea || !fileInput) return;
+
+    // 已有封面时显示预览
+    var existingCover = document.getElementById('actCover').value.trim();
+    if (existingCover) showCoverPreview(existingCover);
+
+    // 点击选择文件
+    dropArea.addEventListener('click', function(e) {
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A') return;
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', function() {
+        if (fileInput.files && fileInput.files[0]) {
+            handleCoverFile(fileInput.files[0]);
+        }
+    });
+
+    // 拖拽事件
+    dropArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropArea.classList.add('dragover');
+    });
+
+    dropArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropArea.classList.remove('dragover');
+    });
+
+    dropArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropArea.classList.remove('dragover');
+        var files = e.dataTransfer.files;
+        if (files && files[0]) {
+            handleCoverFile(files[0]);
+        }
+    });
+
+    // 更换图片
+    var btnChange = document.getElementById('btnChangeCover');
+    if (btnChange) {
+        btnChange.addEventListener('click', function() { fileInput.click(); });
+    }
+
+    // 移除图片
+    var btnRemove = document.getElementById('btnRemoveCover');
+    if (btnRemove) {
+        btnRemove.addEventListener('click', function() {
+            document.getElementById('actCover').value = '';
+            document.getElementById('coverPreview').style.display = 'none';
+            document.getElementById('coverDropArea').style.display = '';
+            document.getElementById('coverUploadProgress').style.display = 'none';
+            fileInput.value = '';
+        });
+    }
+}
+
+function handleCoverFile(file) {
+    // 校验类型
+    var allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowedTypes.indexOf(file.type) === -1) {
+        toast('仅支持 JPG、PNG、WebP 格式', 'error');
+        return;
+    }
+    // 校验大小
+    if (file.size > MAX_COVER_SIZE) {
+        toast('图片大小不能超过 5MB', 'error');
+        return;
+    }
+
+    // 显示上传进度
+    var dropArea = document.getElementById('coverDropArea');
+    var progressEl = document.getElementById('coverUploadProgress');
+    var progressFill = document.getElementById('coverProgressFill');
+    dropArea.style.display = 'none';
+    progressEl.style.display = '';
+    progressFill.style.width = '0%';
+
+    // 上传
+    var fd = new FormData();
+    fd.append('file', file);
+
+    // 用 XHR 实现进度回调
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/upload', true);
+    var token = getToken();
+    if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+
+    xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+            var pct = Math.round(e.loaded / e.total * 100);
+            progressFill.style.width = pct + '%';
+        }
+    };
+
+    xhr.onload = function() {
+        progressEl.style.display = 'none';
+        try {
+            var res = JSON.parse(xhr.responseText);
+            if (res.code === 200 && res.data && res.data.url) {
+                document.getElementById('actCover').value = res.data.url;
+                showCoverPreview(res.data.url);
+            } else {
+                toast(res.message || '上传失败', 'error');
+                dropArea.style.display = '';
+            }
+        } catch (e) {
+            toast('上传失败：服务器返回异常', 'error');
+            dropArea.style.display = '';
+        }
+    };
+
+    xhr.onerror = function() {
+        progressEl.style.display = 'none';
+        toast('上传失败：网络错误', 'error');
+        dropArea.style.display = '';
+    };
+
+    xhr.send(fd);
+}
+
+function showCoverPreview(url) {
+    var preview = document.getElementById('coverPreview');
+    var previewImg = document.getElementById('coverPreviewImg');
+    var dropArea = document.getElementById('coverDropArea');
+    previewImg.src = url;
+    preview.style.display = '';
+    dropArea.style.display = 'none';
+}
+
+function refreshCoverPreview() {
+    var coverVal = document.getElementById('actCover').value.trim();
+    var preview = document.getElementById('coverPreview');
+    var dropArea = document.getElementById('coverDropArea');
+    if (coverVal) {
+        document.getElementById('coverPreviewImg').src = coverVal;
+        preview.style.display = '';
+        dropArea.style.display = 'none';
+    } else {
+        preview.style.display = 'none';
+        dropArea.style.display = '';
+    }
+}
+
 // ===== 表单事件绑定 =====
 function bindFormEvents() {
     // 字数统计
@@ -238,6 +412,9 @@ function bindFormEvents() {
     descEl.addEventListener('input', function() {
         document.getElementById('descCount').textContent = descEl.value.length;
     });
+
+    // 封面上传
+    initCoverUpload();
 
     // 保存草稿
     document.getElementById('btnDraft').addEventListener('click', function() {
@@ -417,6 +594,7 @@ async function loadCloneDataToForm(cloneId) {
         setFieldVal('actFee', d.fee || 0);
         setFieldVal('actTags', Array.isArray(d.tags) ? d.tags.join(', ') : (d.tags || ''));
         setFieldVal('actCover', d.coverImage || '');
+        refreshCoverPreview();
         // 时间字段清空，让用户重新选择
         setFieldVal('actStartTime', '');
         setFieldVal('actEndTime', '');
@@ -477,6 +655,9 @@ async function loadEditDataToForm(editId, isDraft) {
         setFieldVal('actStartTime', formatForDatetimeLocal(d.startTime));
         setFieldVal('actEndTime', formatForDatetimeLocal(d.endTime));
         setFieldVal('actDeadline', formatForDatetimeLocal(d.registrationDeadline));
+
+        // 刷新封面预览
+        refreshCoverPreview();
 
         // 保存编辑ID和草稿状态
         window._editingActivityId = editId;

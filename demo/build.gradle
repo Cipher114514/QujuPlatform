@@ -34,10 +34,10 @@ dependencies {
 	implementation 'com.fasterxml.jackson.core:jackson-databind'
 
 	// H2 for dev (单人快速启动,无需安装MySQL)
-	//  runtimeOnly 'com.h2database:h2'
+	runtimeOnly 'com.h2database:h2'
 
 	// MySQL (团队协作)
-	runtimeOnly 'com.mysql:mysql-connector-j'
+	// runtimeOnly 'com.mysql:mysql-connector-j'
 
 	// Lombok
 	compileOnly 'org.projectlombok:lombok'

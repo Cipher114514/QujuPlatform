@@ -44,6 +44,9 @@ Router.register('/register', {
     },
 
     init: function() {
+        // 显示粒子背景
+        document.body.classList.add('login-page');
+
         window.switchRegRole = function(role) {
             document.querySelectorAll('.role-tab').forEach(function(t) { t.classList.remove('active'); });
             document.getElementById(role === 'user' ? 'tabUser' : 'tabBiz').classList.add('active');
@@ -99,5 +102,9 @@ Router.register('/register', {
                 btn.disabled = false; btn.textContent = '注 册';
             }
         });
+    },
+
+    destroy: function() {
+        document.body.classList.remove('login-page');
     }
 });

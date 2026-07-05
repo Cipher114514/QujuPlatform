@@ -50,15 +50,138 @@
     <script src="/js/pages/map.js"></script>
 </head>
 <body>
+    <!-- 粒子背景 Canvas（登录/注册页显示） -->
+    <canvas id="loginBg"></canvas>
+
     <!-- 导航栏：登录后自动显示 -->
     <div id="navbarSlot"></div>
 
     <!-- 页面内容区：路由匹配后自动替换 -->
     <div id="app"></div>
 
+    <!-- ===== 粒子背景动画（全局常驻，按页面显隐） ===== -->
+    <script>
+    (function() {
+        var canvas = document.getElementById('loginBg');
+        var ctx = canvas.getContext('2d');
+        var particles = [];
+        var mouse = { x: -1000, y: -1000 };
+        var PARTICLE_COUNT = 100;
+        var CONNECT_DIST = 150;
+        var MOUSE_REPEL = 120;
+        var animId;
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        document.addEventListener('mousemove', function(e) {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+        document.addEventListener('mouseleave', function() {
+            mouse.x = -1000;
+            mouse.y = -1000;
+        });
+        document.addEventListener('touchmove', function(e) {
+            mouse.x = e.touches[0].clientX;
+            mouse.y = e.touches[0].clientY;
+        }, { passive: true });
+        document.addEventListener('touchend', function() {
+            mouse.x = -1000;
+            mouse.y = -1000;
+        });
+
+        function Particle() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.vx = (Math.random() - 0.5) * 0.6;
+            this.vy = (Math.random() - 0.5) * 0.6;
+            this.radius = Math.random() * 2.5 + 1;
+            this.baseRadius = this.radius;
+        }
+
+        Particle.prototype.update = function() {
+            var dx = this.x - mouse.x;
+            var dy = this.y - mouse.y;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < MOUSE_REPEL && dist > 0) {
+                var force = (MOUSE_REPEL - dist) / MOUSE_REPEL * 3;
+                this.vx += (dx / dist) * force * 0.12;
+                this.vy += (dy / dist) * force * 0.12;
+                this.radius = this.baseRadius + force * 1.5;
+            } else {
+                this.radius += (this.baseRadius - this.radius) * 0.1;
+            }
+            this.vx *= 0.997;
+            this.vy *= 0.997;
+            this.x += this.vx;
+            this.y += this.vy;
+            if (this.x < 0) { this.x = 0; this.vx *= -0.5; }
+            if (this.x > canvas.width) { this.x = canvas.width; this.vx *= -0.5; }
+            if (this.y < 0) { this.y = 0; this.vy *= -0.5; }
+            if (this.y > canvas.height) { this.y = canvas.height; this.vy *= -0.5; }
+        };
+
+        Particle.prototype.draw = function() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(139, 130, 255, 0.8)';
+            ctx.fill();
+        };
+
+        for (var i = 0; i < PARTICLE_COUNT; i++) {
+            particles.push(new Particle());
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (var i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+                for (var j = i + 1; j < particles.length; j++) {
+                    var dx = particles[i].x - particles[j].x;
+                    var dy = particles[i].y - particles[j].y;
+                    var dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < CONNECT_DIST) {
+                        var alpha = (1 - dist / CONNECT_DIST) * 0.25;
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.strokeStyle = 'rgba(139, 130, 255, ' + alpha + ')';
+                        ctx.lineWidth = 0.6;
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            if (mouse.x > 0 && mouse.y > 0) {
+                var glow = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 200);
+                glow.addColorStop(0, 'rgba(139, 130, 255, 0.15)');
+                glow.addColorStop(0.5, 'rgba(99, 102, 241, 0.05)');
+                glow.addColorStop(1, 'rgba(79, 70, 229, 0)');
+                ctx.beginPath();
+                ctx.arc(mouse.x, mouse.y, 200, 0, Math.PI * 2);
+                ctx.fillStyle = glow;
+                ctx.fill();
+            }
+
+            animId = requestAnimationFrame(animate);
+        }
+        animate();
+    })();
+    </script>
+
     <script>
         // ===== 启动App =====
         var navbarSlot = document.getElementById('navbarSlot');
+
+        // 尽早初始化主题，避免闪烁
+        Navbar.initTheme();
 
         function updateNavbar() {
             navbarSlot.innerHTML = Navbar.render();
