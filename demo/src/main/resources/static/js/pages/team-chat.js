@@ -32,7 +32,7 @@ Router.register('/team/:id/chat', {
             <div id="fileListPanel" style="display:none;background:var(--card);border-top:1px solid var(--border);padding:12px;max-height:200px;overflow-y:auto;"></div>
             <div class="chat-input-area">
                 <input type="file" id="fileUploadInput" style="display:none;" multiple />
-                <button class="btn btn-outline btn-sm" id="fileUploadBtn" title="上传文件">📎</button>
+                <button class="btn btn-outline btn-sm" id="fileUploadBtn" title="上传文件" style="font-size:18px;line-height:1;padding:4px 8px;">＋</button>
                 <input type="text" id="chatInput" class="chat-input" placeholder="输入消息..." maxlength="2000" />
                 <button class="btn btn-primary" id="chatSendBtn">发送</button>
             </div>
