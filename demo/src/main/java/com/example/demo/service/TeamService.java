@@ -23,7 +23,9 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,6 +40,8 @@ public class TeamService {
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
     private final ActivityRepository activityRepository;
+    private final TeamVoteRepository teamVoteRepository;
+    private final TeamVoteRecordRepository teamVoteRecordRepository;
     private final FileService fileService;
     private final ObjectMapper objectMapper;
     private final SimpMessagingTemplate messagingTemplate;
@@ -177,12 +181,12 @@ public class TeamService {
     @Transactional
     @RedisLock(key = "team:handle:{teamId}")
     public TeamJoinRequestResponse handleJoinRequest(Long teamId, Long requestId, Long currentUserId, HandleTeamJoinRequest request) {
-        // 验证队长权限
+        // 验证队长或管理员权限
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new BusinessException("小队不存在"));
 
-        if (!team.getLeaderId().equals(currentUserId)) {
-            throw new BusinessException("只有队长可以处理加入申请");
+        if (!isLeaderOrAdmin(team, currentUserId)) {
+            throw new BusinessException("只有队长或管理员可以处理加入申请");
         }
 
         TeamJoinRequest joinRequest = teamJoinRequestRepository.findById(requestId)
@@ -298,9 +302,9 @@ public class TeamService {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new BusinessException("小队不存在"));
 
-        // 验证队长权限
-        if (!team.getLeaderId().equals(currentUserId)) {
-            throw new BusinessException("只有队长可以查看待处理申请");
+        // 验证队长或管理员权限
+        if (!isLeaderOrAdmin(team, currentUserId)) {
+            throw new BusinessException("只有队长或管理员可以查看待处理申请");
         }
 
         List<TeamJoinRequest> requests = teamJoinRequestRepository.findPendingRequestsByTeamId(teamId);
@@ -333,6 +337,11 @@ public class TeamService {
      */
     @Transactional
     public TeamMessageItem sendTeamMessage(Long teamId, Long senderId, String content) {
+        return sendTeamMessage(teamId, senderId, content, "TEXT", null);
+    }
+
+    @Transactional
+    public TeamMessageItem sendTeamMessage(Long teamId, Long senderId, String content, String type, String metadata) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new BusinessException("小队不存在"));
 
@@ -353,6 +362,10 @@ public class TeamService {
             throw new BusinessException("消息内容不能超过2000字");
         }
 
+        if (type == null || type.isBlank()) {
+            type = "TEXT";
+        }
+
         User sender = userRepository.findById(senderId).orElse(null);
 
         Message msg = Message.builder()
@@ -360,8 +373,9 @@ public class TeamService {
                 .teamId(teamId)
                 .senderId(senderId)
                 .content(content)
-                .type("TEXT")
+                .type(type)
                 .status("DELIVERED")
+                .metadata(metadata)
                 .build();
         msg = messageRepository.save(msg);
 
@@ -373,6 +387,7 @@ public class TeamService {
                 .senderAvatar(sender != null ? sender.getAvatar() : null)
                 .content(msg.getContent())
                 .type(msg.getType())
+                .metadata(msg.getMetadata())
                 .sentAt(msg.getSentAt())
                 .build();
 
@@ -409,6 +424,7 @@ public class TeamService {
                     .senderAvatar(sender != null ? sender.getAvatar() : null)
                     .content(m.getContent())
                     .type(m.getType())
+                    .metadata(m.getMetadata())
                     .sentAt(m.getSentAt())
                     .build());
         }
@@ -438,9 +454,9 @@ public class TeamService {
             throw new BusinessException("小队已解散");
         }
 
-        // 仅队长可以创建队内活动
-        if (!team.getLeaderId().equals(creatorId)) {
-            throw new BusinessException("只有队长可以创建队内活动");
+        // 仅队长或管理员可以创建队内活动
+        if (!isLeaderOrAdmin(team, creatorId)) {
+            throw new BusinessException("只有队长或管理员可以创建队内活动");
         }
 
         // 时间校验
@@ -608,9 +624,9 @@ public class TeamService {
             throw new BusinessException("照片不属于该小队");
         }
 
-        // 队长可删除任意照片，普通成员只能删除自己的照片
-        boolean isLeader = team.getLeaderId().equals(currentUserId);
-        if (!isLeader && !photo.getUserId().equals(currentUserId)) {
+        // 队长或管理员可删除任意照片，普通成员只能删除自己的照片
+        boolean isLeaderOrAdmin = isLeaderOrAdmin(team, currentUserId);
+        if (!isLeaderOrAdmin && !photo.getUserId().equals(currentUserId)) {
             throw new BusinessException("只能删除自己上传的照片");
         }
 
@@ -654,7 +670,445 @@ public class TeamService {
         log.info("用户 {} 解散了小队 {} (id={})", currentUserId, team.getName(), teamId);
     }
 
+    // ==================== 角色管理 ====================
+
+    /**
+     * 队长任命管理员
+     */
+    @Transactional
+    public void appointAdmin(Long teamId, Long leaderId, Long targetUserId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (!team.getLeaderId().equals(leaderId)) {
+            throw new BusinessException("只有队长可以任命管理员");
+        }
+
+        TeamMember member = teamMemberRepository.findByTeamIdAndUserId(teamId, targetUserId)
+                .orElseThrow(() -> new BusinessException("该用户不是小队成员"));
+
+        if (member.getRole() == TeamMember.MemberRole.LEADER) {
+            throw new BusinessException("队长不能降级自己");
+        }
+
+        if (member.getRole() == TeamMember.MemberRole.ADMIN) {
+            throw new BusinessException("该用户已经是管理员");
+        }
+
+        member.setRole(TeamMember.MemberRole.ADMIN);
+        teamMemberRepository.save(member);
+        log.info("队长 {} 任命用户 {} 为小队 {} 的管理员", leaderId, targetUserId, teamId);
+    }
+
+    /**
+     * 队长免除管理员
+     */
+    @Transactional
+    public void removeAdmin(Long teamId, Long leaderId, Long targetUserId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (!team.getLeaderId().equals(leaderId)) {
+            throw new BusinessException("只有队长可以免除管理员");
+        }
+
+        TeamMember member = teamMemberRepository.findByTeamIdAndUserId(teamId, targetUserId)
+                .orElseThrow(() -> new BusinessException("该用户不是小队成员"));
+
+        if (member.getRole() != TeamMember.MemberRole.ADMIN) {
+            throw new BusinessException("该用户不是管理员");
+        }
+
+        member.setRole(TeamMember.MemberRole.MEMBER);
+        teamMemberRepository.save(member);
+        log.info("队长 {} 免除了用户 {} 在小队 {} 的管理员身份", leaderId, targetUserId, teamId);
+    }
+
+    /**
+     * 踢出成员
+     * - 队长可踢管理员和普通成员
+     * - 管理员可踢普通成员
+     * - 不可踢自己
+     */
+    @Transactional
+    public void kickMember(Long teamId, Long operatorId, Long targetUserId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (operatorId.equals(targetUserId)) {
+            throw new BusinessException("不能踢出自己");
+        }
+
+        TeamMember operator = teamMemberRepository.findByTeamIdAndUserId(teamId, operatorId)
+                .orElseThrow(() -> new BusinessException("您不是该小队成员"));
+
+        TeamMember target = teamMemberRepository.findByTeamIdAndUserId(teamId, targetUserId)
+                .orElseThrow(() -> new BusinessException("目标用户不是该小队成员"));
+
+        // 队长不可被踢
+        if (target.getRole() == TeamMember.MemberRole.LEADER) {
+            throw new BusinessException("不能踢出队长");
+        }
+
+        // 权限检查
+        if (operator.getRole() == TeamMember.MemberRole.LEADER) {
+            // 队长可踢管理员和成员
+            // (已排除LEADER和自身)
+        } else if (operator.getRole() == TeamMember.MemberRole.ADMIN) {
+            // 管理员只能踢普通成员
+            if (target.getRole() != TeamMember.MemberRole.MEMBER) {
+                throw new BusinessException("管理员只能踢出普通成员");
+            }
+        } else {
+            throw new BusinessException("只有队长或管理员可以踢出成员");
+        }
+
+        User targetUser = userRepository.findById(targetUserId).orElse(null);
+        String targetName = targetUser != null ? targetUser.getNickname() : "用户" + targetUserId;
+
+        teamMemberRepository.delete(target);
+        team.setMemberCount(Math.max(0, team.getMemberCount() - 1));
+        teamRepository.save(team);
+
+        // 发送系统消息
+        sendTeamMessage(teamId, operatorId, targetName + " 被移出了小队", "SYSTEM", null);
+
+        log.info("用户 {} 将 {} 踢出小队 {}", operatorId, targetUserId, teamId);
+    }
+
+    // ==================== 群公告 ====================
+
+    /**
+     * 更新群公告（队长或管理员）
+     */
+    @Transactional
+    public void updateAnnouncement(Long teamId, Long userId, String announcement) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (!isLeaderOrAdmin(team, userId)) {
+            throw new BusinessException("只有队长或管理员可以编辑群公告");
+        }
+
+        if (announcement != null && announcement.length() > 500) {
+            throw new BusinessException("公告内容不能超过500字");
+        }
+
+        team.setAnnouncement(announcement);
+        teamRepository.save(team);
+
+        // 通过统一消息通道发送
+        String notice = (announcement != null && !announcement.isBlank())
+                ? "📢 群公告：\n" + announcement
+                : "📢 已清空群公告";
+        sendTeamMessage(teamId, userId, notice, "ANNOUNCEMENT", null);
+
+        log.info("用户 {} 更新了小队 {} 的群公告", userId, teamId);
+    }
+
+    // ==================== 群投票 ====================
+
+    /**
+     * 创建群投票（仅队长和管理员可发起）
+     */
+    @Transactional
+    public VoteResponse createVote(Long teamId, Long userId, CreateVoteRequest req) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (!isLeaderOrAdmin(team, userId)) {
+            throw new BusinessException("只有队长或管理员可以发起投票");
+        }
+
+        if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
+            throw new BusinessException("您不是该小队成员");
+        }
+
+        if (req.getTitle() == null || req.getTitle().isBlank()) {
+            throw new BusinessException("投票标题不能为空");
+        }
+
+        if (req.getOptions() == null || req.getOptions().size() < 2) {
+            throw new BusinessException("至少需要2个选项");
+        }
+
+        if (req.getOptions().size() > 20) {
+            throw new BusinessException("最多支持20个选项");
+        }
+
+        // 解析截止时间
+        LocalDateTime deadline = null;
+        if (req.getDeadline() != null && !req.getDeadline().isBlank()) {
+            try {
+                deadline = LocalDateTime.parse(req.getDeadline());
+                if (!deadline.isAfter(LocalDateTime.now())) {
+                    throw new BusinessException("截止时间必须晚于当前时间");
+                }
+            } catch (Exception e) {
+                throw new BusinessException("截止时间格式不正确");
+            }
+        }
+
+        // 构建选项JSON
+        List<Map<String, Object>> optionList = new ArrayList<>();
+        for (int i = 0; i < req.getOptions().size(); i++) {
+            Map<String, Object> opt = new java.util.HashMap<>();
+            opt.put("index", i);
+            opt.put("text", req.getOptions().get(i));
+            opt.put("count", 0);
+            optionList.add(opt);
+        }
+
+        String optionsJson;
+        try {
+            optionsJson = objectMapper.writeValueAsString(optionList);
+        } catch (JsonProcessingException e) {
+            throw new BusinessException("选项格式错误");
+        }
+
+        TeamVote vote = TeamVote.builder()
+                .teamId(teamId)
+                .creatorId(userId)
+                .title(req.getTitle())
+                .options(optionsJson)
+                .isMultiple(req.getIsMultiple() != null && req.getIsMultiple())
+                .deadline(deadline)
+                .status(TeamVote.VoteStatus.ACTIVE)
+                .build();
+
+        TeamVote saved = teamVoteRepository.save(vote);
+
+        // 通过统一消息通道发送投票通知
+        String voteMsg = "发起了投票：「" + req.getTitle() + "」";
+        String metadata = "{\"voteId\":" + saved.getId() + "}";
+        sendTeamMessage(teamId, userId, voteMsg, "VOTE", metadata);
+
+        log.info("用户 {} 在小队 {} 创建了投票 {}", userId, teamId, saved.getId());
+        return toVoteResponse(saved, userId);
+    }
+
+    /**
+     * 参与投票
+     */
+    @Transactional
+    public VoteResponse castVote(Long teamId, Long voteId, Long userId, CastVoteRequest req) {
+        TeamVote vote = teamVoteRepository.findById(voteId)
+                .orElseThrow(() -> new BusinessException("投票不存在"));
+
+        if (!vote.getTeamId().equals(teamId)) {
+            throw new BusinessException("投票不属于该小队");
+        }
+
+        if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
+            throw new BusinessException("您不是该小队成员");
+        }
+
+        if (vote.getStatus() != TeamVote.VoteStatus.ACTIVE) {
+            throw new BusinessException("投票已结束");
+        }
+
+        // 检查是否过了截止时间
+        if (vote.getDeadline() != null && LocalDateTime.now().isAfter(vote.getDeadline())) {
+            vote.setStatus(TeamVote.VoteStatus.CLOSED);
+            vote.setClosedAt(LocalDateTime.now());
+            teamVoteRepository.save(vote);
+            throw new BusinessException("投票已截止");
+        }
+
+        if (req.getOptionIndexes() == null || req.getOptionIndexes().isEmpty()) {
+            throw new BusinessException("请选择投票选项");
+        }
+
+        // 解析当前选项
+        List<Map<String, Object>> optionList;
+        try {
+            optionList = objectMapper.readValue(vote.getOptions(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class));
+        } catch (JsonProcessingException e) {
+            throw new BusinessException("投票数据异常");
+        }
+
+        // 校验选项索引
+        for (int idx : req.getOptionIndexes()) {
+            if (idx < 0 || idx >= optionList.size()) {
+                throw new BusinessException("无效的选项");
+            }
+        }
+
+        // 单选模式只允许选一个
+        if (!vote.getIsMultiple() && req.getOptionIndexes().size() > 1) {
+            throw new BusinessException("该投票为单选，只能选择一个选项");
+        }
+
+        // 删除用户之前的投票记录（允许改票/取消重投）
+        List<TeamVoteRecord> existingRecords = teamVoteRecordRepository.findByVoteIdAndUserId(voteId, userId);
+        if (!existingRecords.isEmpty()) {
+            // 先减去旧的计数
+            for (TeamVoteRecord rec : existingRecords) {
+                Map<String, Object> opt = optionList.get(rec.getOptionIndex());
+                opt.put("count", Math.max(0, ((Number) opt.get("count")).intValue() - 1));
+            }
+            teamVoteRecordRepository.deleteAll(existingRecords);
+        }
+
+        // 添加新记录
+        for (int idx : req.getOptionIndexes()) {
+            TeamVoteRecord record = TeamVoteRecord.builder()
+                    .voteId(voteId)
+                    .userId(userId)
+                    .optionIndex(idx)
+                    .build();
+            teamVoteRecordRepository.save(record);
+
+            // 更新计数
+            Map<String, Object> opt = optionList.get(idx);
+            opt.put("count", ((Number) opt.get("count")).intValue() + 1);
+        }
+
+        // 保存更新后的选项
+        try {
+            vote.setOptions(objectMapper.writeValueAsString(optionList));
+        } catch (JsonProcessingException e) {
+            throw new BusinessException("投票数据更新失败");
+        }
+        teamVoteRepository.save(vote);
+
+        log.info("用户 {} 参与了投票 {}", userId, voteId);
+        return toVoteResponse(vote, userId);
+    }
+
+    /**
+     * 获取投票列表
+     */
+    public List<VoteResponse> getVotes(Long teamId, Long userId) {
+        if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
+            throw new BusinessException("您不是该小队成员");
+        }
+
+        List<TeamVote> votes = teamVoteRepository.findByTeamIdOrderByCreatedAtDesc(teamId);
+        return votes.stream()
+                .map(v -> toVoteResponse(v, userId))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 获取单个投票详情
+     */
+    public VoteResponse getVoteDetail(Long teamId, Long voteId, Long userId) {
+        TeamVote vote = teamVoteRepository.findById(voteId)
+                .orElseThrow(() -> new BusinessException("投票不存在"));
+
+        if (!vote.getTeamId().equals(teamId)) {
+            throw new BusinessException("投票不属于该小队");
+        }
+
+        if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
+            throw new BusinessException("您不是该小队成员");
+        }
+
+        return toVoteResponse(vote, userId);
+    }
+
+    /**
+     * 关闭投票（创建者、队长或管理员）
+     */
+    @Transactional
+    public void closeVote(Long teamId, Long voteId, Long userId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        TeamVote vote = teamVoteRepository.findById(voteId)
+                .orElseThrow(() -> new BusinessException("投票不存在"));
+
+        if (!vote.getTeamId().equals(teamId)) {
+            throw new BusinessException("投票不属于该小队");
+        }
+
+        // 创建者、队长或管理员可以关闭投票
+        if (!vote.getCreatorId().equals(userId) && !team.getLeaderId().equals(userId)
+                && !isAdmin(teamId, userId)) {
+            throw new BusinessException("只有投票发起者、队长或管理员可以关闭投票");
+        }
+
+        if (vote.getStatus() != TeamVote.VoteStatus.ACTIVE) {
+            throw new BusinessException("投票已经结束");
+        }
+
+        vote.setStatus(TeamVote.VoteStatus.CLOSED);
+        vote.setClosedAt(LocalDateTime.now());
+        teamVoteRepository.save(vote);
+
+        // 通过统一消息通道发送
+        sendTeamMessage(teamId, userId, "📊 关闭了投票：「" + vote.getTitle() + "」", "SYSTEM", null);
+
+        log.info("用户 {} 关闭了小队 {} 的投票 {}", userId, teamId, voteId);
+    }
+
     // ==================== 私有辅助方法 ====================
+
+    /**
+     * 判断用户是否是队长或管理员
+     */
+    private boolean isLeaderOrAdmin(Team team, Long userId) {
+        if (team.getLeaderId().equals(userId)) {
+            return true;
+        }
+        return isAdmin(team.getId(), userId);
+    }
+
+    /**
+     * 判断用户是否是管理员
+     */
+    private boolean isAdmin(Long teamId, Long userId) {
+        TeamMember member = teamMemberRepository.findByTeamIdAndUserId(teamId, userId).orElse(null);
+        return member != null && member.getRole() == TeamMember.MemberRole.ADMIN;
+    }
+
+    private VoteResponse toVoteResponse(TeamVote vote, Long currentUserId) {
+        // 解析选项
+        List<VoteResponse.VoteOptionItem> optionItems = new ArrayList<>();
+        try {
+            List<Map<String, Object>> optionList = objectMapper.readValue(vote.getOptions(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class));
+            for (Map<String, Object> opt : optionList) {
+                optionItems.add(VoteResponse.VoteOptionItem.builder()
+                        .index(((Number) opt.get("index")).intValue())
+                        .text((String) opt.get("text"))
+                        .count(((Number) opt.get("count")).intValue())
+                        .build());
+            }
+        } catch (JsonProcessingException e) {
+            // ignore
+        }
+
+        // 计算总票数
+        int totalVotes = optionItems.stream().mapToInt(VoteResponse.VoteOptionItem::getCount).sum();
+
+        // 检查当前用户是否已投票
+        boolean hasVoted = false;
+        if (currentUserId != null) {
+            hasVoted = teamVoteRecordRepository.existsByVoteIdAndUserId(vote.getId(), currentUserId);
+        }
+
+        User creator = userRepository.findById(vote.getCreatorId()).orElse(null);
+
+        return VoteResponse.builder()
+                .id(vote.getId())
+                .teamId(vote.getTeamId())
+                .creatorId(vote.getCreatorId())
+                .creatorNickname(creator != null ? creator.getNickname() : null)
+                .creatorAvatar(creator != null ? creator.getAvatar() : null)
+                .title(vote.getTitle())
+                .options(optionItems)
+                .isMultiple(vote.getIsMultiple())
+                .status(vote.getStatus().name().toLowerCase())
+                .totalVotes(totalVotes)
+                .hasVoted(hasVoted)
+                .deadline(vote.getDeadline())
+                .createdAt(vote.getCreatedAt())
+                .closedAt(vote.getClosedAt())
+                .build();
+    }
 
     private TeamResponse toTeamResponse(Team team, Long currentUserId) {
         // 解析标签
@@ -703,6 +1157,7 @@ public class TeamService {
                 .leaderAvatar(leader != null ? leader.getAvatar() : null)
                 .memberCount(team.getMemberCount())
                 .status(team.getStatus().name().toLowerCase())
+                .announcement(team.getAnnouncement())
                 .createdAt(team.getCreatedAt())
                 .updatedAt(team.getUpdatedAt())
                 .userRole(userRole)
@@ -730,7 +1185,7 @@ public class TeamService {
 
     private TeamPhotoResponse toPhotoResponse(TeamPhoto photo, Team team, Long currentUserId) {
         User uploader = userRepository.findById(photo.getUserId()).orElse(null);
-        boolean isLeader = team.getLeaderId().equals(currentUserId);
+        boolean isLeaderOrAdmin = isLeaderOrAdmin(team, currentUserId);
         boolean isOwner = photo.getUserId().equals(currentUserId);
 
         return TeamPhotoResponse.builder()
@@ -742,7 +1197,7 @@ public class TeamService {
                 .imageUrl(photo.getImageUrl())
                 .description(photo.getDescription())
                 .createdAt(photo.getCreatedAt())
-                .canDelete(isLeader || isOwner)
+                .canDelete(isLeaderOrAdmin || isOwner)
                 .build();
     }
 
@@ -757,6 +1212,7 @@ public class TeamService {
         private String senderAvatar;
         private String content;
         private String type;
+        private String metadata;
         private LocalDateTime sentAt;
     }
 

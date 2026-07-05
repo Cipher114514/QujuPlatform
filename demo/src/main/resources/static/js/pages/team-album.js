@@ -106,13 +106,13 @@ Router.register('/team/:id/album', {
                 </div>
                 <div class="team-actions">
                     <a href="#/team/${teamId}" class="btn btn-outline">返回小队</a>
-                    ${t.userRole === 'member' || t.userRole === 'leader'
+                    ${t.userRole === 'member' || t.userRole === 'leader' || t.userRole === 'admin'
                         ? '<button class="btn btn-primary" id="btnShowUpload">上传照片</button>'
                         : ''}
                 </div>
             `;
 
-            if (t.userRole === 'member' || t.userRole === 'leader') {
+            if (t.userRole === 'member' || t.userRole === 'leader' || t.userRole === 'admin') {
                 document.getElementById('uploadArea').style.display = 'block';
             }
 

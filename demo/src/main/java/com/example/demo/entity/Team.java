@@ -56,6 +56,10 @@ public class Team {
     @Builder.Default
     private TeamStatus status = TeamStatus.ACTIVE;
 
+    /** 群公告 */
+    @Column(length = 500)
+    private String announcement;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
