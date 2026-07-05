@@ -172,6 +172,9 @@ Router.register('/team/:id', {
                 return;
             }
 
+            var curUser = getCurUser();
+            var curUserId = curUser ? curUser.id : 0;
+
             container.innerHTML = members.map(member => {
                 var roleBadge = '';
                 if (member.role === 'leader') {
@@ -182,11 +185,23 @@ Router.register('/team/:id', {
                     roleBadge = '<span class="role-badge member">成员</span>';
                 }
 
+                var isSelf = member.userId === curUserId;
+
                 var adminBtns = '';
                 if (teamData.userRole === 'leader' && member.role === 'member') {
                     adminBtns = '<button class="btn btn-sm btn-outline" onclick="handleAppointAdmin(' + member.userId + ')" style="margin-left:auto;">设为管理员</button>';
                 } else if (teamData.userRole === 'leader' && member.role === 'admin') {
                     adminBtns = '<button class="btn btn-sm btn-outline" onclick="handleRemoveAdmin(' + member.userId + ')" style="margin-left:auto;">取消管理员</button>';
+                }
+
+                // 踢出按钮：不可踢自己，队长可踢管理员和成员，管理员可踢成员
+                var kickBtn = '';
+                if (!isSelf) {
+                    if (teamData.userRole === 'leader' && (member.role === 'admin' || member.role === 'member')) {
+                        kickBtn = '<button class="btn btn-sm btn-danger" onclick="handleKickMember(' + member.userId + ')" style="margin-left:4px;">踢出</button>';
+                    } else if (teamData.userRole === 'admin' && member.role === 'member') {
+                        kickBtn = '<button class="btn btn-sm btn-danger" onclick="handleKickMember(' + member.userId + ')" style="margin-left:4px;">踢出</button>';
+                    }
                 }
 
                 return `
@@ -200,7 +215,10 @@ Router.register('/team/:id', {
                         </div>
                         <p class="member-joined">加入于 ${formatDate(member.joinedAt)}</p>
                     </div>
-                    ${adminBtns}
+                    <div style="display:flex;align-items:center;margin-left:auto;">
+                        ${adminBtns}
+                        ${kickBtn}
+                    </div>
                 </div>`;
             }).join('');
         }
@@ -386,6 +404,18 @@ Router.register('/team/:id', {
             try {
                 await TeamAPI.removeAdmin(teamId, userId);
                 toast('已取消管理员', 'success');
+                loadMembers();
+            } catch (e) {
+                toast(e.message || '操作失败', 'error');
+            }
+        };
+
+        // 踢出成员
+        window.handleKickMember = async function(userId) {
+            if (!confirm('确定要将该成员踢出小队吗？此操作不可撤销。')) return;
+            try {
+                await TeamAPI.kickMember(teamId, userId);
+                toast('已踢出成员', 'success');
                 loadMembers();
             } catch (e) {
                 toast(e.message || '操作失败', 'error');
