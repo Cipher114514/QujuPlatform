@@ -81,4 +81,19 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
            "(f.fromUserId = :userId1 AND f.toUserId = :userId2) OR " +
            "(f.fromUserId = :userId2 AND f.toUserId = :userId1)")
     boolean existsFriendshipBetweenUsers(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
+
+    /**
+     * 获取被当前用户拉黑的所有关系
+     */
+    @Query("SELECT f FROM Friendship f WHERE f.blockedBy = :userId AND f.blockStatus = 'BLOCKED'")
+    List<Friendship> findBlockedByUser(@Param("userId") Long userId);
+
+    /**
+     * 获取某个用户的所有分组标签
+     */
+    @Query("SELECT DISTINCT f.fromGroup FROM Friendship f WHERE f.fromUserId = :userId AND f.status = 'ACCEPTED' AND f.fromGroup IS NOT NULL AND f.fromGroup != ''")
+    List<String> findGroupsFromUser(@Param("userId") Long userId);
+
+    @Query("SELECT DISTINCT f.toGroup FROM Friendship f WHERE f.toUserId = :userId AND f.status = 'ACCEPTED' AND f.toGroup IS NOT NULL AND f.toGroup != ''")
+    List<String> findGroupsToUser(@Param("userId") Long userId);
 }

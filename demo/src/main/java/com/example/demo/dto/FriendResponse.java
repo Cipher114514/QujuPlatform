@@ -17,4 +17,10 @@ public class FriendResponse {
     private String avatar;
     private String status; // online / offline
     private LocalDateTime friendSince;
+    @Builder.Default
+    private String remark = null;
+    @Builder.Default
+    private String group = null;
+    @Builder.Default
+    private Boolean isBlocked = false;
 }
