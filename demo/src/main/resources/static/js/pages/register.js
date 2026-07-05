@@ -88,11 +88,13 @@ Router.register('/register', {
                     body.address = document.getElementById('regAddr').value;
                     body.businessFields = document.getElementById('regBizFields').value || undefined;
                 }
-                var res = await AuthAPI.register(body);
-                setToken(res.data.token);
-                setCurUser(res.data.user);
-                toast('注册成功！');
-                Router.navigate('/home');
+                await AuthAPI.register(body);
+                alertEl.textContent = '注册成功，请前往邮箱点击激活链接后再登录';
+                alertEl.className = 'alert alert-success show';
+                toast('注册成功，请先激活邮箱');
+                setTimeout(function() {
+                    Router.navigate('/login?email=' + encodeURIComponent(body.email));
+                }, 1200);
             } catch (err) {
                 alertEl.textContent = err.message || '注册失败';
                 alertEl.className = 'alert alert-error show';

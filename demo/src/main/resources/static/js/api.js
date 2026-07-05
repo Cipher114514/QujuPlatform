@@ -82,7 +82,8 @@ function isEmail(str) {
 }
 var AuthAPI = {
     login:    function(body) { return api('/auth/login',    { method:'POST', body: body }); },
-    register: function(body) { return api('/auth/register', { method:'POST', body: body }); }
+    register: function(body) { return api('/auth/register', { method:'POST', body: body }); },
+    activate: function(token) { return api('/auth/activate?token=' + encodeURIComponent(token)); }
 };
 
 var UserAPI = {
