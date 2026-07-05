@@ -45,6 +45,7 @@ public class TeamService {
     private final FileService fileService;
     private final ObjectMapper objectMapper;
     private final SimpMessagingTemplate messagingTemplate;
+    private final TeamAnnouncementRepository announcementRepository;
 
     /**
      * 创建小队
@@ -362,8 +363,16 @@ public class TeamService {
             throw new BusinessException("消息内容不能超过2000字");
         }
 
+        // @all 权限校验：仅队长/管理员可用
         if (type == null || type.isBlank()) {
             type = "TEXT";
+        }
+        if (content.contains("@all") || content.contains("@所有人")) {
+            TeamMember member = teamMemberRepository.findByTeamIdAndUserId(teamId, senderId)
+                    .orElseThrow(() -> new BusinessException("您不是该小队成员"));
+            if (!isLeaderOrAdmin(member)) {
+                throw new BusinessException("仅队长和管理员可以使用@所有人");
+            }
         }
 
         User sender = userRepository.findById(senderId).orElse(null);
@@ -396,6 +405,93 @@ public class TeamService {
         log.info("小队群聊广播: teamId={}, senderId={}, msgId={}", teamId, senderId, msg.getId());
 
         return result;
+    }
+
+    // ===================== 群公告（成员 D）=====================
+
+    /**
+     * 获取小队公告
+     */
+    public TeamAnnouncement getAnnouncement(Long teamId, Long userId) {
+        teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+        if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
+            throw new BusinessException("您不是该小队成员");
+        }
+        return announcementRepository.findByTeamId(teamId).orElse(null);
+    }
+
+    /**
+     * 发布/更新公告（仅队长/管理员）
+     */
+    @Transactional
+    public TeamAnnouncement publishAnnouncement(Long teamId, Long publisherId, String content) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        TeamMember member = teamMemberRepository.findByTeamIdAndUserId(teamId, publisherId)
+                .orElseThrow(() -> new BusinessException("您不是该小队成员"));
+
+        if (!isLeaderOrAdmin(member)) {
+            throw new BusinessException("仅队长和管理员可以发布公告");
+        }
+
+        if (content == null || content.isBlank()) {
+            throw new BusinessException("公告内容不能为空");
+        }
+        if (content.length() > 500) {
+            throw new BusinessException("公告内容不能超过500字");
+        }
+
+        // 使用 saveOrUpdate：每个小队只有一条公告
+        TeamAnnouncement announcement = announcementRepository.findByTeamId(teamId)
+                .orElse(TeamAnnouncement.builder().teamId(teamId).publisherId(publisherId).build());
+
+        announcement.setContent(content.trim());
+        announcement.setPublisherId(publisherId);
+        announcement = announcementRepository.save(announcement);
+
+        // WebSocket 推送公告更新
+        User publisher = userRepository.findById(publisherId).orElse(null);
+        var payload = new AnnouncementPayload(
+                announcement.getId(), teamId, announcement.getContent(),
+                publisherId, publisher != null ? publisher.getNickname() : null,
+                announcement.getUpdatedAt().toString()
+        );
+        messagingTemplate.convertAndSend("/topic/team/" + teamId + "/announcement", payload);
+        log.info("群公告更新: teamId={}, publisherId={}", teamId, publisherId);
+
+        return announcement;
+    }
+
+    /**
+     * 删除公告（仅队长/管理员）
+     */
+    @Transactional
+    public void deleteAnnouncement(Long teamId, Long userId) {
+        teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        TeamMember member = teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
+                .orElseThrow(() -> new BusinessException("您不是该小队成员"));
+
+        if (!isLeaderOrAdmin(member)) {
+            throw new BusinessException("仅队长和管理员可以删除公告");
+        }
+
+        announcementRepository.deleteByTeamId(teamId);
+
+        // WebSocket 推送公告已删除
+        Object payload = Map.of("action", "deleted", "teamId", teamId);
+        messagingTemplate.convertAndSend("/topic/team/" + teamId + "/announcement", payload);
+        log.info("群公告已删除: teamId={}, userId={}", teamId, userId);
+    }
+
+    // ===================== 权限工具 =====================
+
+    private boolean isLeaderOrAdmin(TeamMember member) {
+        return member.getRole() == TeamMember.MemberRole.LEADER
+                || member.getRole() == TeamMember.MemberRole.ADMIN;
     }
 
     /**
@@ -1228,5 +1324,15 @@ public class TeamService {
         private int size;
         private long total;
         private int pages;
+    }
+
+    @Data @Builder
+    public static class AnnouncementPayload {
+        private Long id;
+        private Long teamId;
+        private String content;
+        private Long publisherId;
+        private String publisherNickname;
+        private String updatedAt;
     }
 }

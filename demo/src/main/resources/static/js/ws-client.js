@@ -36,7 +36,7 @@ var WsClient = {
         try {
             var socket = new SockJS('/ws?token=' + encodeURIComponent(token));
             self._stompClient = StompLib.over(socket);
-            self._stompClient.debug = null;
+            self._stompClient.debug = function(){};
 
             self._stompClient.connect({},
                 function () {
