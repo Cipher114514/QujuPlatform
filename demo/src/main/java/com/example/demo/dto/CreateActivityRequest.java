@@ -41,4 +41,6 @@ public class CreateActivityRequest {
     private List<String> tags;
     private String coverImage;
     private List<String> images;
+    private Double latitude;
+    private Double longitude;
 }
