@@ -171,6 +171,7 @@ var TeamAPI = {
     // 角色管理
     appointAdmin:  function(id, userId) { return api('/teams/' + id + '/members/' + userId + '/appoint-admin', { method:'PUT' }); },
     removeAdmin:   function(id, userId) { return api('/teams/' + id + '/members/' + userId + '/remove-admin', { method:'PUT' }); },
+    kickMember:    function(id, userId) { return api('/teams/' + id + '/members/' + userId, { method:'DELETE' }); },
     // 群公告
     updateAnnouncement: function(id, announcement) { return api('/teams/' + id + '/announcement', { method:'PUT', body:{ announcement: announcement } }); },
     // 群投票

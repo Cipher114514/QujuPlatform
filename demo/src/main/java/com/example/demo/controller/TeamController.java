@@ -274,6 +274,19 @@ public class TeamController {
         return Result.ok("已免除管理员", null);
     }
 
+    /**
+     * 踢出成员（队长/管理员）
+     */
+    @DeleteMapping("/{id}/members/{userId}")
+    public Result<Void> kickMember(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable("id") Long id,
+            @PathVariable("userId") Long userId) {
+        log.info("踢出成员: teamId={}, operatorId={}, targetUserId={}", id, currentUser.getId(), userId);
+        teamService.kickMember(id, currentUser.getId(), userId);
+        return Result.ok("已踢出成员", null);
+    }
+
     // ==================== 群公告 ====================
 
     /**

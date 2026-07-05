@@ -724,6 +724,58 @@ public class TeamService {
         log.info("队长 {} 免除了用户 {} 在小队 {} 的管理员身份", leaderId, targetUserId, teamId);
     }
 
+    /**
+     * 踢出成员
+     * - 队长可踢管理员和普通成员
+     * - 管理员可踢普通成员
+     * - 不可踢自己
+     */
+    @Transactional
+    public void kickMember(Long teamId, Long operatorId, Long targetUserId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (operatorId.equals(targetUserId)) {
+            throw new BusinessException("不能踢出自己");
+        }
+
+        TeamMember operator = teamMemberRepository.findByTeamIdAndUserId(teamId, operatorId)
+                .orElseThrow(() -> new BusinessException("您不是该小队成员"));
+
+        TeamMember target = teamMemberRepository.findByTeamIdAndUserId(teamId, targetUserId)
+                .orElseThrow(() -> new BusinessException("目标用户不是该小队成员"));
+
+        // 队长不可被踢
+        if (target.getRole() == TeamMember.MemberRole.LEADER) {
+            throw new BusinessException("不能踢出队长");
+        }
+
+        // 权限检查
+        if (operator.getRole() == TeamMember.MemberRole.LEADER) {
+            // 队长可踢管理员和成员
+            // (已排除LEADER和自身)
+        } else if (operator.getRole() == TeamMember.MemberRole.ADMIN) {
+            // 管理员只能踢普通成员
+            if (target.getRole() != TeamMember.MemberRole.MEMBER) {
+                throw new BusinessException("管理员只能踢出普通成员");
+            }
+        } else {
+            throw new BusinessException("只有队长或管理员可以踢出成员");
+        }
+
+        User targetUser = userRepository.findById(targetUserId).orElse(null);
+        String targetName = targetUser != null ? targetUser.getNickname() : "用户" + targetUserId;
+
+        teamMemberRepository.delete(target);
+        team.setMemberCount(Math.max(0, team.getMemberCount() - 1));
+        teamRepository.save(team);
+
+        // 发送系统消息
+        sendTeamMessage(teamId, operatorId, targetName + " 被移出了小队", "SYSTEM", null);
+
+        log.info("用户 {} 将 {} 踢出小队 {}", operatorId, targetUserId, teamId);
+    }
+
     // ==================== 群公告 ====================
 
     /**
