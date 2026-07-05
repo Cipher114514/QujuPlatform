@@ -2202,3 +2202,124 @@ body {
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes scaleIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+
+/* ===== 群公告栏（成员 D） ===== */
+.announcement-bar {
+    margin: 0 16px 8px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #fef9e7 0%, #fef3c7 100%);
+    border: 1px solid #f59e0b;
+    border-radius: 10px;
+    font-size: 14px;
+}
+.announcement-bar.announcement-empty {
+    background: #f8fafc;
+    border-color: var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.announcement-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 6px;
+    line-height: 1.5;
+}
+.announcement-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+.announcement-text {
+    color: #92400e;
+    font-weight: 500;
+    flex: 1;
+    word-break: break-word;
+}
+.announcement-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.announcement-time {
+    font-size: 11px;
+    color: #a16207;
+}
+.announcement-actions {
+    display: flex;
+    gap: 6px;
+}
+.announcement-actions .btn-sm {
+    padding: 2px 10px;
+    font-size: 11px;
+}
+
+/* ===== @提及下拉（成员 D） ===== */
+.mention-dropdown {
+    position: absolute;
+    bottom: 56px;
+    left: 0;
+    right: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 -4px 16px rgba(0,0,0,.1);
+    z-index: 100;
+}
+.mention-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background .12s;
+}
+.mention-item:hover,
+.mention-item.active {
+    background: #eef2ff;
+}
+.mention-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #e2e8f0;
+}
+.mention-all-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    background: #fef3c7;
+}
+.mention-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    flex: 1;
+}
+.mention-hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+/* ===== @提及消息高亮 ===== */
+.mention-tag {
+    display: inline;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: rgba(220,38,38,.12);
+    color: #dc2626;
+    font-weight: 600;
+}
+.mention-tag.mention-all {
+    background: rgba(245,158,11,.15);
+    color: #b45309;
+}
+.msg-bubble.mentioned {
+    border-left: 3px solid #dc2626;
+}

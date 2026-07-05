@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.common.Result;
 import com.example.demo.dto.*;
+import com.example.demo.entity.TeamAnnouncement;
 import com.example.demo.entity.User;
 import com.example.demo.service.TeamService;
 import jakarta.validation.Valid;
@@ -13,6 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/teams")
@@ -242,6 +244,43 @@ public class TeamController {
         log.info("解散小队: teamId={}, userId={}", id, currentUser.getId());
         teamService.disbandTeam(id, currentUser.getId());
         return Result.ok("小队已解散", null);
+    }
+
+    // ==================== 群公告（成员 D）====================
+
+    /**
+     * 获取小队公告
+     */
+    @GetMapping("/{id}/announcement")
+    public Result<TeamAnnouncement> getAnnouncement(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long id) {
+        TeamAnnouncement announcement = teamService.getAnnouncement(id, currentUser.getId());
+        return Result.ok(announcement);
+    }
+
+    /**
+     * 发布/更新公告（队长/管理员）
+     */
+    @PostMapping("/{id}/announcement")
+    public Result<TeamAnnouncement> publishAnnouncement(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        String content = body.get("content");
+        TeamAnnouncement announcement = teamService.publishAnnouncement(id, currentUser.getId(), content);
+        return Result.ok("公告已发布", announcement);
+    }
+
+    /**
+     * 删除公告（队长/管理员）
+     */
+    @DeleteMapping("/{id}/announcement")
+    public Result<Void> deleteAnnouncement(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long id) {
+        teamService.deleteAnnouncement(id, currentUser.getId());
+        return Result.ok("公告已删除", null);
     }
 
     @Data
