@@ -379,38 +379,39 @@ const ChatRoomPage = {
         var self = this;
         var overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;display:flex;justify-content:center;align-items:center;';
-        overlay.innerHTML = '<div style="background:var(--card);border-radius:12px;padding:20px;width:90%;max-width:360px;max-height:70vh;overflow-y:auto;">'
+        overlay.innerHTML = '<div style="background:var(--card);border-radius:12px;padding:20px;width:90%;max-width:380px;max-height:70vh;display:flex;flex-direction:column;">'
             + '<h3 style="margin:0 0 12px;">转发消息</h3>'
-            + '<div id="forwardList" style="max-height:300px;overflow-y:auto;">加载中...</div>'
-            + '<div style="text-align:right;margin-top:12px;"><button class="btn btn-outline btn-sm" id="forwardCancel">取消</button></div>'
+            + '<div style="margin-bottom:8px;font-weight:600;font-size:13px;color:var(--text-secondary);">转发到好友</div>'
+            + '<div id="forwardFriendList" style="flex:1;max-height:250px;overflow-y:auto;margin-bottom:12px;">加载中...</div>'
+            + '<div style="margin-bottom:8px;font-weight:600;font-size:13px;color:var(--text-secondary);">转发到小队群聊</div>'
+            + '<div id="forwardTeamList" style="max-height:150px;overflow-y:auto;margin-bottom:12px;">加载中...</div>'
+            + '<div style="text-align:right;"><button class="btn btn-outline btn-sm" id="forwardCancel">取消</button></div>'
             + '</div>';
         document.body.appendChild(overlay);
 
         document.getElementById('forwardCancel').addEventListener('click', function () { overlay.remove(); });
         overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
 
-        // 加载好友列表（从会话列表）
-        MessageAPI.conversations().then(function (res) {
-            var convs = res.data || [];
+        // 并行加载好友列表（关注列表 + 会话列表合并去重）
+        var seenIds = {};
+        var friendItems = [];
+
+        function renderFriendList() {
             var html = '';
-            if (convs.length === 0) {
-                html = '<div class="empty-state" style="padding:20px;">暂无好友</div>';
+            if (friendItems.length === 0) {
+                html = '<div class="empty-state" style="padding:10px;">暂无好友</div>';
             }
-            for (var i = 0; i < convs.length; i++) {
-                var c = convs[i];
-                if (!c.targetUser) continue;
-                html += '<div class="forward-user-item" style="display:flex;align-items:center;padding:10px;cursor:pointer;border-radius:8px;" '
-                    + 'data-userid="' + c.targetUser.id + '" data-nickname="' + self._escapeHtml(c.targetUser.nickname || '') + '">'
-                    + '<div style="width:36px;height:36px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;margin-right:12px;font-size:14px;">'
-                    + (c.targetUser.nickname || '?').charAt(0).toUpperCase() + '</div>'
-                    + '<span style="flex:1;">' + self._escapeHtml(c.targetUser.nickname || '用户' + c.targetUser.id) + '</span>'
+            for (var k = 0; k < friendItems.length; k++) {
+                var item = friendItems[k];
+                html += '<div class="forward-friend-item" style="display:flex;align-items:center;padding:8px;cursor:pointer;border-radius:8px;" data-userid="' + item.id + '">'
+                    + '<div style="width:32px;height:32px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;margin-right:10px;font-size:12px;flex-shrink:0;">'
+                    + (item.nickname || '?').charAt(0).toUpperCase() + '</div>'
+                    + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + self._escapeHtml(item.nickname || '用户' + item.id) + '</span>'
                     + '</div>';
             }
-            var listEl = document.getElementById('forwardList');
-            if (listEl) listEl.innerHTML = html;
-
-            // 绑定点击事件
-            var items = overlay.querySelectorAll('.forward-user-item');
+            var el = document.getElementById('forwardFriendList');
+            if (el) el.innerHTML = html;
+            var items = overlay.querySelectorAll('.forward-friend-item');
             for (var j = 0; j < items.length; j++) {
                 items[j].addEventListener('click', function () {
                     var uid = parseInt(this.dataset.userid);
@@ -418,9 +419,67 @@ const ChatRoomPage = {
                     self._doForward(msg, uid);
                 });
             }
+        }
+
+        // 从关注列表加载
+        FollowAPI.following().then(function (res) {
+            var list = res.data || [];
+            for (var i = 0; i < list.length; i++) {
+                var u = list[i];
+                if (u.id === (getCurUser() || {}).id) continue;
+                if (!seenIds[u.id]) {
+                    seenIds[u.id] = true;
+                    friendItems.push({ id: u.id, nickname: u.nickname || u.name });
+                }
+            }
+            renderFriendList();
         }).catch(function () {
-            var listEl = document.getElementById('forwardList');
-            if (listEl) listEl.innerHTML = '<div class="empty-state" style="padding:20px;">加载失败</div>';
+            renderFriendList();
+        });
+
+        // 从会话列表补充（可能有未关注但有聊天记录的用户）
+        MessageAPI.conversations().then(function (res) {
+            var convs = res.data || [];
+            for (var i = 0; i < convs.length; i++) {
+                var tu = (convs[i] || {}).targetUser;
+                if (!tu) continue;
+                if (tu.id === (getCurUser() || {}).id) continue;
+                if (!seenIds[tu.id]) {
+                    seenIds[tu.id] = true;
+                    friendItems.push({ id: tu.id, nickname: tu.nickname });
+                }
+            }
+            renderFriendList();
+        }).catch(function () {});
+
+        // 加载我的小队列表
+        TeamAPI.myTeams().then(function (res) {
+            var teams = res.data || [];
+            var html = '';
+            if (teams.length === 0) {
+                html = '<div class="empty-state" style="padding:10px;">暂无加入的小队</div>';
+            }
+            for (var i = 0; i < teams.length; i++) {
+                var t = teams[i];
+                html += '<div class="forward-team-item" style="display:flex;align-items:center;padding:8px;cursor:pointer;border-radius:8px;" data-teamid="' + t.id + '">'
+                    + '<div style="width:32px;height:32px;border-radius:8px;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;margin-right:10px;font-size:12px;flex-shrink:0;">'
+                    + (t.name || '?').charAt(0).toUpperCase() + '</div>'
+                    + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + self._escapeHtml(t.name || '小队') + '</span>'
+                    + '</div>';
+            }
+            var teamEl = document.getElementById('forwardTeamList');
+            if (teamEl) teamEl.innerHTML = html;
+            var teamItems = overlay.querySelectorAll('.forward-team-item');
+            for (var j = 0; j < teamItems.length; j++) {
+                teamItems[j].addEventListener('click', function () {
+                    var tid = parseInt(this.dataset.teamid);
+                    overlay.remove();
+                    self._doForwardToTeam(msg, tid);
+                });
+            }
+        }).catch(function () {
+            var teamEl = document.getElementById('forwardTeamList');
+            if (teamEl) teamEl.innerHTML = '<div class="empty-state" style="padding:10px;">加载失败</div>';
         });
     },
 
@@ -428,6 +487,19 @@ const ChatRoomPage = {
         try {
             await MessageAPI.forward(msg.id, targetUserId);
             toast('转发成功');
+        } catch (e) {
+            toast(e.message || '转发失败', 'error');
+        }
+    },
+
+    _doForwardToTeam: async function (msg, targetTeamId) {
+        try {
+            // 直接向目标小队发送消息实现转发
+            await api('/teams/' + targetTeamId + '/messages', {
+                method: 'POST',
+                body: { content: msg.content }
+            });
+            toast('已转发到小队群聊');
         } catch (e) {
             toast(e.message || '转发失败', 'error');
         }
@@ -459,7 +531,7 @@ const ChatRoomPage = {
         for (var i = 0; i < this._messages.length; i++) {
             var m = this._messages[i];
             var isMe = m.senderId === curId;
-            var isRecall = m.type === 'RECALL';
+            var isRecall = m.type === 'RECALL' || m.recalledAt;
             var time = self._formatMsgTime(m.sentAt);
             var statusIcon = '';
             if (isMe) {

@@ -386,10 +386,12 @@ Router.register('/team/:id/chat', {
         var self = this;
         var overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;display:flex;justify-content:center;align-items:center;';
-        overlay.innerHTML = '<div style="background:var(--card);border-radius:12px;padding:20px;width:90%;max-width:360px;max-height:70vh;overflow-y:auto;">'
+        overlay.innerHTML = '<div style="background:var(--card);border-radius:12px;padding:20px;width:90%;max-width:380px;max-height:70vh;display:flex;flex-direction:column;">'
             + '<h3 style="margin:0 0 12px;">转发消息</h3>'
-            + '<div style="margin-bottom:12px;"><strong>转发到好友：</strong></div>'
-            + '<div id="forwardFriendList" style="max-height:200px;overflow-y:auto;margin-bottom:12px;">加载中...</div>'
+            + '<div style="margin-bottom:8px;font-weight:600;font-size:13px;color:var(--text-secondary);">转发到好友</div>'
+            + '<div id="forwardFriendList" style="flex:1;max-height:250px;overflow-y:auto;margin-bottom:12px;">加载中...</div>'
+            + '<div style="margin-bottom:8px;font-weight:600;font-size:13px;color:var(--text-secondary);">转发到小队群聊</div>'
+            + '<div id="forwardTeamList" style="max-height:150px;overflow-y:auto;margin-bottom:12px;">加载中...</div>'
             + '<div style="text-align:right;"><button class="btn btn-outline btn-sm" id="forwardCancel">取消</button></div>'
             + '</div>';
         document.body.appendChild(overlay);
@@ -397,17 +399,21 @@ Router.register('/team/:id/chat', {
         document.getElementById('forwardCancel').addEventListener('click', function () { overlay.remove(); });
         overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
 
-        MessageAPI.conversations().then(function (res) {
-            var convs = res.data || [];
+        // 并行加载好友列表
+        var seenIds = {};
+        var friendItems = [];
+
+        function renderFriendList() {
             var html = '';
-            if (convs.length === 0) { html = '<div class="empty-state" style="padding:10px;">暂无好友</div>'; }
-            for (var i = 0; i < convs.length; i++) {
-                var c = convs[i];
-                if (!c.targetUser) continue;
-                html += '<div class="forward-friend-item" style="display:flex;align-items:center;padding:8px;cursor:pointer;border-radius:8px;" data-userid="' + c.targetUser.id + '">'
-                    + '<div style="width:32px;height:32px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;margin-right:10px;font-size:12px;">'
-                    + (c.targetUser.nickname || '?').charAt(0).toUpperCase() + '</div>'
-                    + '<span>' + self._escapeHtml(c.targetUser.nickname || '用户' + c.targetUser.id) + '</span>'
+            if (friendItems.length === 0) {
+                html = '<div class="empty-state" style="padding:10px;">暂无好友</div>';
+            }
+            for (var k = 0; k < friendItems.length; k++) {
+                var item = friendItems[k];
+                html += '<div class="forward-friend-item" style="display:flex;align-items:center;padding:8px;cursor:pointer;border-radius:8px;" data-userid="' + item.id + '">'
+                    + '<div style="width:32px;height:32px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;margin-right:10px;font-size:12px;flex-shrink:0;">'
+                    + (item.nickname || '?').charAt(0).toUpperCase() + '</div>'
+                    + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + self._escapeHtml(item.nickname || '用户' + item.id) + '</span>'
                     + '</div>';
             }
             var el = document.getElementById('forwardFriendList');
@@ -420,9 +426,70 @@ Router.register('/team/:id/chat', {
                     self._doForward(msg, uid);
                 });
             }
+        }
+
+        FollowAPI.following().then(function (res) {
+            var list = res.data || [];
+            for (var i = 0; i < list.length; i++) {
+                var u = list[i];
+                if (u.id === (getCurUser() || {}).id) continue;
+                if (!seenIds[u.id]) {
+                    seenIds[u.id] = true;
+                    friendItems.push({ id: u.id, nickname: u.nickname || u.name });
+                }
+            }
+            renderFriendList();
         }).catch(function () {
-            var el = document.getElementById('forwardFriendList');
-            if (el) el.innerHTML = '<div class="empty-state" style="padding:10px;">加载失败</div>';
+            renderFriendList();
+        });
+
+        MessageAPI.conversations().then(function (res) {
+            var convs = res.data || [];
+            for (var i = 0; i < convs.length; i++) {
+                var tu = (convs[i] || {}).targetUser;
+                if (!tu) continue;
+                if (tu.id === (getCurUser() || {}).id) continue;
+                if (!seenIds[tu.id]) {
+                    seenIds[tu.id] = true;
+                    friendItems.push({ id: tu.id, nickname: tu.nickname });
+                }
+            }
+            renderFriendList();
+        }).catch(function () {});
+
+        // 加载小队列表（排除当前小队）
+        TeamAPI.myTeams().then(function (res) {
+            var teams = res.data || [];
+            var html = '';
+            var filtered = [];
+            for (var i = 0; i < teams.length; i++) {
+                if (teams[i].id === self._teamId) continue;
+                filtered.push(teams[i]);
+            }
+            if (filtered.length === 0) {
+                html = '<div class="empty-state" style="padding:10px;">暂无其他小队</div>';
+            }
+            for (var i = 0; i < filtered.length; i++) {
+                var t = filtered[i];
+                html += '<div class="forward-team-item" style="display:flex;align-items:center;padding:8px;cursor:pointer;border-radius:8px;" data-teamid="' + t.id + '">'
+                    + '<div style="width:32px;height:32px;border-radius:8px;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;margin-right:10px;font-size:12px;flex-shrink:0;">'
+                    + (t.name || '?').charAt(0).toUpperCase() + '</div>'
+                    + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + self._escapeHtml(t.name || '小队') + '</span>'
+                    + '</div>';
+            }
+            var teamEl = document.getElementById('forwardTeamList');
+            if (teamEl) teamEl.innerHTML = html;
+            var teamItems = overlay.querySelectorAll('.forward-team-item');
+            for (var j = 0; j < teamItems.length; j++) {
+                teamItems[j].addEventListener('click', function () {
+                    var tid = parseInt(this.dataset.teamid);
+                    overlay.remove();
+                    self._doForwardToTeam(msg, tid);
+                });
+            }
+        }).catch(function () {
+            var teamEl = document.getElementById('forwardTeamList');
+            if (teamEl) teamEl.innerHTML = '<div class="empty-state" style="padding:10px;">加载失败</div>';
         });
     },
 
@@ -430,6 +497,15 @@ Router.register('/team/:id/chat', {
         try {
             await MessageAPI.forward(msg.id, targetUserId);
             toast('转发成功');
+        } catch (e) {
+            toast(e.message || '转发失败', 'error');
+        }
+    },
+
+    _doForwardToTeam: async function (msg, targetTeamId) {
+        try {
+            await TeamAPI.forwardMessage(this._teamId, msg.id, { targetTeamId: targetTeamId });
+            toast('已转发到小队群聊');
         } catch (e) {
             toast(e.message || '转发失败', 'error');
         }
@@ -520,7 +596,12 @@ Router.register('/team/:id/chat', {
                 var f = files[i];
                 var sizeStr = f.fileSize ? (f.fileSize < 1024 * 1024 ? Math.round(f.fileSize / 1024) + 'KB' : (f.fileSize / (1024 * 1024)).toFixed(2) + 'MB') : '';
                 html += '<div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">'
-                    + '<span style="margin-right:8px;">📄</span>'
+                    + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-right:8px;">'
+                    + '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>'
+                    + '<polyline points="14 2 14 8 20 8"/>'
+                    + '<line x1="16" y1="13" x2="8" y2="13"/>'
+                    + '<line x1="16" y1="17" x2="8" y2="17"/>'
+                    + '</svg>'
                     + '<a href="' + self._escapeHtml(f.fileUrl || '') + '" target="_blank" style="flex:1;color:var(--primary);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
                     + self._escapeHtml(f.fileName || f.content) + '</a>'
                     + '<span style="color:var(--text-secondary);margin-left:8px;white-space:nowrap;">' + sizeStr + '</span>'
@@ -560,7 +641,7 @@ Router.register('/team/:id/chat', {
             var m = this._messages[i];
             var isMe = m.senderId === curId;
             var isSystem = m.type === 'SYSTEM';
-            var isRecall = m.type === 'RECALL';
+            var isRecall = m.type === 'RECALL' || m.recalledAt;
             var isFile = m.type === 'FILE' && !m.recalledAt;
             var time = self._formatMsgTime(m.sentAt);
 
@@ -606,8 +687,14 @@ Router.register('/team/:id/chat', {
                     + '<div class="msg-content-wrap" style="' + (isMe ? 'align-items:flex-end;' : 'align-items:flex-start;') + '">'
                     + (!isMe ? '<div class="msg-sender-name">' + self._escapeHtml(m.senderNickname || '用户' + m.senderId) + '</div>' : '')
                     + '<div class="msg-bubble ' + (isMe ? 'bubble-me' : 'bubble-other') + '" data-msgid="' + m.id + '" style="max-width:250px;">'
-                    + '<div style="display:flex;align-items:center;gap:8px;">'
-                    + '<span style="font-size:20px;">📄</span>'
+                    + '<div style="display:flex;align-items:center;gap:10px;">'
+                    + '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="' + (isMe ? 'rgba(255,255,255,0.8)' : 'var(--primary)') + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">'
+                    + '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>'
+                    + '<polyline points="14 2 14 8 20 8"/>'
+                    + '<line x1="16" y1="13" x2="8" y2="13"/>'
+                    + '<line x1="16" y1="17" x2="8" y2="17"/>'
+                    + '<polyline points="10 9 9 9 8 9"/>'
+                    + '</svg>'
                     + '<div style="min-width:0;">'
                     + '<a href="' + self._escapeHtml(fileUrl) + '" target="_blank" style="color:' + (isMe ? '#fff' : 'var(--primary)') + ';text-decoration:underline;font-size:13px;word-break:break-all;">'
                     + self._escapeHtml(fileName || '未知文件') + '</a>'

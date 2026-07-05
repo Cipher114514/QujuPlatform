@@ -266,6 +266,15 @@ public class MessageService {
             Long otherUserId = conv.getUser1Id().equals(userId) ? conv.getUser2Id() : conv.getUser1Id();
             messagingTemplate.convertAndSendToUser(otherUserId.toString(), "/queue/messages", recallEvent);
             messagingTemplate.convertAndSendToUser(userId.toString(), "/queue/messages", recallEvent);
+
+            // 更新会话预览：如果撤回的是最后一条消息，更新lastMessage
+            Page<Message> latestPage = messageRepository
+                    .findByConversationIdOrderBySentAtDesc(msg.getConversationId(), PageRequest.of(0, 1));
+            if (!latestPage.getContent().isEmpty()
+                    && latestPage.getContent().get(0).getId().equals(msg.getId())) {
+                conv.setLastMessage("消息已被撤回");
+                conversationRepository.save(conv);
+            }
         }
 
         log.info("用户 {} 撤回了私聊消息 msgId={}", userId, messageId);
