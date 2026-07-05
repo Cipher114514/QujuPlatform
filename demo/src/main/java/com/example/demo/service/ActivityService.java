@@ -70,6 +70,8 @@ public class ActivityService {
                 .tags(tagsStr)
                 .images(imagesStr)
                 .coverImage(req.getCoverImage())
+                .latitude(req.getLatitude())
+                .longitude(req.getLongitude())
                 .creatorId(creator.getId())
                 .registrationDeadline(req.getRegistrationDeadline())
                 .build();
@@ -121,6 +123,8 @@ public class ActivityService {
         activity.setFee(req.getFee() != null ? req.getFee() : BigDecimal.ZERO);
         activity.setTags(tagsStr);
         activity.setCoverImage(req.getCoverImage());
+        if (req.getLatitude() != null) activity.setLatitude(req.getLatitude());
+        if (req.getLongitude() != null) activity.setLongitude(req.getLongitude());
         activity.setRegistrationDeadline(req.getRegistrationDeadline());
 
         return activityRepository.save(activity);
@@ -204,6 +208,8 @@ public class ActivityService {
         activity.setFee(req.getFee() != null ? req.getFee() : BigDecimal.ZERO);
         activity.setTags(tagsStr);
         activity.setCoverImage(req.getCoverImage());
+        if (req.getLatitude() != null) activity.setLatitude(req.getLatitude());
+        if (req.getLongitude() != null) activity.setLongitude(req.getLongitude());
         activity.setRegistrationDeadline(req.getRegistrationDeadline());
 
         return activityRepository.save(activity);
@@ -251,6 +257,8 @@ public class ActivityService {
         activity.setFee(req.getFee() != null ? req.getFee() : BigDecimal.ZERO);
         activity.setTags(tagsStr);
         activity.setCoverImage(req.getCoverImage());
+        if (req.getLatitude() != null) activity.setLatitude(req.getLatitude());
+        if (req.getLongitude() != null) activity.setLongitude(req.getLongitude());
         activity.setRegistrationDeadline(req.getRegistrationDeadline());
         activity.setStatus("ACTIVE");
 

@@ -42,7 +42,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/activities/*/qrcode", "/activities/*/checkin/**").authenticated()
                 // 活动浏览公开（详情、列表、评价、复盘画廊等）
                 .requestMatchers(HttpMethod.GET, "/activities/**").permitAll()
-                // 地图浏览公开
+                // 地图 API 公开
+                .requestMatchers("/api/map/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/map/**").permitAll()
                 .requestMatchers("/admin/**").hasAuthority("ADMIN")
                 .anyRequest().authenticated()
