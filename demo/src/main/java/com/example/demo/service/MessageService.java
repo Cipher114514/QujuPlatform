@@ -80,8 +80,13 @@ public class MessageService {
                         .id(m.getId())
                         .senderId(m.getSenderId())
                         .content(m.getContent())
+                        .type(m.getType())
                         .status(m.getStatus())
                         .sentAt(m.getSentAt())
+                        .recalledAt(m.getRecalledAt())
+                        .fileUrl(m.getFileUrl())
+                        .fileName(m.getFileName())
+                        .fileSize(m.getFileSize())
                         .build())
                 .collect(Collectors.toList());
 
@@ -152,9 +157,13 @@ public class MessageService {
                 .id(msg.getId())
                 .senderId(msg.getSenderId())
                 .content(msg.getContent())
+                .type(msg.getType())
                 .status(msg.getStatus())
                 .sentAt(msg.getSentAt())
                 .conversationId(conv.getId())
+                .fileUrl(msg.getFileUrl())
+                .fileName(msg.getFileName())
+                .fileSize(msg.getFileSize())
                 .build();
 
         // WebSocket 实时推送给接收方
@@ -201,10 +210,91 @@ public class MessageService {
                         .id(m.getId())
                         .senderId(m.getSenderId())
                         .content(m.getContent())
+                        .type(m.getType())
                         .status(m.getStatus())
                         .sentAt(m.getSentAt())
+                        .recalledAt(m.getRecalledAt())
+                        .fileUrl(m.getFileUrl())
+                        .fileName(m.getFileName())
+                        .fileSize(m.getFileSize())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    // ---------- 撤回消息（私聊）----------
+
+    @Transactional
+    public MessageItem recallMessage(Long userId, Long messageId) {
+        Message msg = messageRepository.findById(messageId)
+                .orElseThrow(() -> new BusinessException(404, "消息不存在"));
+
+        if (!msg.getSenderId().equals(userId)) {
+            throw new BusinessException(403, "只能撤回自己发送的消息");
+        }
+
+        if (msg.getRecalledAt() != null) {
+            throw new BusinessException("消息已被撤回");
+        }
+
+        // 检查是否在2分钟内
+        if (msg.getSentAt().plusMinutes(2).isBefore(LocalDateTime.now())) {
+            throw new BusinessException("超过2分钟无法撤回");
+        }
+
+        msg.setRecalledAt(LocalDateTime.now());
+        msg.setContent("消息已被撤回");
+        msg.setFileUrl(null);
+        msg.setFileName(null);
+        msg.setFileSize(null);
+        messageRepository.save(msg);
+
+        // 构建撤回事件
+        MessageItem recallEvent = MessageItem.builder()
+                .id(msg.getId())
+                .conversationId(msg.getConversationId())
+                .senderId(msg.getSenderId())
+                .content("消息已被撤回")
+                .type("RECALL")
+                .status(msg.getStatus())
+                .sentAt(msg.getSentAt())
+                .recalledAt(msg.getRecalledAt())
+                .build();
+
+        // WS 推送撤回事件给双方
+        Conversation conv = conversationRepository.findById(msg.getConversationId()).orElse(null);
+        if (conv != null) {
+            Long otherUserId = conv.getUser1Id().equals(userId) ? conv.getUser2Id() : conv.getUser1Id();
+            messagingTemplate.convertAndSendToUser(otherUserId.toString(), "/queue/messages", recallEvent);
+            messagingTemplate.convertAndSendToUser(userId.toString(), "/queue/messages", recallEvent);
+        }
+
+        log.info("用户 {} 撤回了私聊消息 msgId={}", userId, messageId);
+        return recallEvent;
+    }
+
+    // ---------- 转发消息（私聊）----------
+
+    @Transactional
+    public MessageItem forwardMessage(Long userId, Long messageId, Long targetUserId) {
+        Message msg = messageRepository.findById(messageId)
+                .orElseThrow(() -> new BusinessException(404, "消息不存在"));
+
+        // 已被撤回的消息无法转发
+        if (msg.getRecalledAt() != null) {
+            throw new BusinessException("已被撤回的消息无法转发");
+        }
+
+        // 只能转发自己参与的消息（发送方或接收方均可）
+        Conversation origConv = conversationRepository.findById(msg.getConversationId()).orElse(null);
+        boolean isParticipant = origConv != null
+                && (origConv.getUser1Id().equals(userId) || origConv.getUser2Id().equals(userId));
+        if (!isParticipant && !msg.getSenderId().equals(userId)) {
+            throw new BusinessException(403, "无权转发该消息");
+        }
+
+        String forwardContent = msg.getContent();
+        // 如果是文件消息，连同文件信息一起转发
+        return sendMessage(userId, targetUserId, forwardContent);
     }
 
     // ===================== 内部响应类型 =====================
@@ -231,8 +321,13 @@ public class MessageService {
         private Long senderId;
         private Long conversationId;
         private String content;
+        private String type;
         private String status;
         private LocalDateTime sentAt;
+        private LocalDateTime recalledAt;
+        private String fileUrl;
+        private String fileName;
+        private Long fileSize;
     }
 
     @Data @Builder

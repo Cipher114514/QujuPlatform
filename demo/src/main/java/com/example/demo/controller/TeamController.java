@@ -158,8 +158,61 @@ public class TeamController {
             @AuthenticationPrincipal User currentUser,
             @PathVariable Long id,
             @RequestBody SendMessageRequest req) {
-        log.info("发送小队群聊消息: teamId={}, senderId={}", id, currentUser.getId());
-        return Result.ok(teamService.sendTeamMessage(id, currentUser.getId(), req.getContent()));
+        log.info("发送小队群聊消息: teamId={}, senderId={}, type={}", id, currentUser.getId(), req.getType());
+        return Result.ok(teamService.sendTeamMessage(id, currentUser.getId(),
+                req.getContent(), req.getType(), req.getFileUrl(), req.getFileName(), req.getFileSize()));
+    }
+
+    /**
+     * 撤回小队群聊消息
+     */
+    @PutMapping("/{teamId}/messages/{messageId}/recall")
+    public Result<TeamService.TeamMessageItem> recallTeamMessage(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long teamId,
+            @PathVariable Long messageId) {
+        log.info("撤回小队群聊消息: teamId={}, msgId={}, userId={}", teamId, messageId, currentUser.getId());
+        return Result.ok("消息已撤回", teamService.recallTeamMessage(teamId, messageId, currentUser.getId()));
+    }
+
+    /**
+     * 转发小队群聊消息
+     */
+    @PostMapping("/{teamId}/messages/{messageId}/forward")
+    public Result<Void> forwardTeamMessage(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long teamId,
+            @PathVariable Long messageId,
+            @RequestBody ForwardTeamMessageRequest req) {
+        log.info("转发小队群聊消息: teamId={}, msgId={}, targetUserId={}, targetTeamId={}",
+                teamId, messageId, req.getTargetUserId(), req.getTargetTeamId());
+        teamService.forwardTeamMessage(teamId, messageId, currentUser.getId(),
+                req.getTargetUserId(), req.getTargetTeamId());
+        return Result.ok("转发成功", null);
+    }
+
+    /**
+     * 获取小队群文件列表
+     */
+    @GetMapping("/{id}/files")
+    public Result<List<TeamService.TeamMessageItem>> getTeamFiles(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable("id") Long id) {
+        log.info("获取小队群文件: teamId={}", id);
+        return Result.ok(teamService.getTeamFiles(id, currentUser.getId()));
+    }
+
+    /**
+     * 删除群文件
+     */
+    @DeleteMapping("/{teamId}/files/{messageId}")
+    public Result<Void> deleteTeamFile(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long teamId,
+            @PathVariable Long messageId) {
+        log.info("删除群文件: teamId={}, msgId={}, userId={}", teamId, messageId, currentUser.getId());
+        teamService.deleteTeamFile(teamId, messageId, currentUser.getId());
+        return Result.ok("文件已删除", null);
     }
 
     // ==================== 队内活动 ====================
@@ -247,5 +300,15 @@ public class TeamController {
     @Data
     static class SendMessageRequest {
         private String content;
+        private String type;
+        private String fileUrl;
+        private String fileName;
+        private Long fileSize;
+    }
+
+    @Data
+    static class ForwardTeamMessageRequest {
+        private Long targetUserId;
+        private Long targetTeamId;
     }
 }

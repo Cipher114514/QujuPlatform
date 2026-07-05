@@ -12,6 +12,7 @@ const ChatRoomPage = {
     _loading: false,
     _lastSentAt: null,
     _pollTimer: null,
+    _contextMenu: null,
 
     render: function (params) {
         var tu = this._targetUser || {};
@@ -98,19 +99,32 @@ const ChatRoomPage = {
             clearInterval(this._pollTimer);
             this._pollTimer = null;
         }
+        this._hideContextMenu();
     },
 
     // ========== WebSocket 消息处理 ==========
 
     _onWsMessage: function (msg) {
         console.log('[ChatRoom] WS消息:', msg);
+        // 处理撤回事件
+        if (msg.type === 'RECALL') {
+            for (var i = 0; i < this._messages.length; i++) {
+                if (this._messages[i].id === msg.id) {
+                    this._messages[i].content = msg.content || '消息已被撤回';
+                    this._messages[i].type = 'RECALL';
+                    this._messages[i].recalledAt = msg.recalledAt;
+                    this._renderMessages();
+                    return;
+                }
+            }
+            return;
+        }
         if (msg.senderId !== this._targetUserId) return;
         for (var i = 0; i < this._messages.length; i++) {
             if (this._messages[i].id === msg.id) return;
         }
         this._messages.push(msg);
         if (msg.sentAt) this._lastSentAt = msg.sentAt;
-        // 如果还没有 conversationId（新会话），从 WS 消息中获取
         if (!this._conversationId && msg.conversationId) {
             this._conversationId = msg.conversationId;
         }
@@ -283,6 +297,142 @@ const ChatRoomPage = {
         }
     },
 
+    // ========== 上下文菜单 & 撤回/转发 ==========
+
+    _showContextMenu: function (e, msg) {
+        this._hideContextMenu();
+        var self = this;
+        var menu = document.createElement('div');
+        menu.className = 'context-menu';
+        menu.style.cssText = 'position:fixed;z-index:9999;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:4px 0;min-width:120px;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+        menu.style.left = e.clientX + 'px';
+        menu.style.top = e.clientY + 'px';
+
+        var canRecall = msg.senderId === (getCurUser() || {}).id &&
+            msg.type !== 'RECALL' && msg.type !== 'SYSTEM' &&
+            !msg.recalledAt &&
+            (new Date() - new Date(msg.sentAt)) < 120000;
+
+        var items = [];
+
+        if (canRecall) {
+            items.push({ label: '撤回', action: function () { self._recallMessage(msg); } });
+        }
+        if (msg.type !== 'RECALL' && !msg.recalledAt) {
+            items.push({ label: '转发', action: function () { self._forwardMessage(msg); } });
+        }
+
+        if (items.length === 0) { return; }
+
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            var div = document.createElement('div');
+            div.className = 'context-menu-item';
+            div.textContent = item.label;
+            div.style.cssText = 'padding:8px 16px;cursor:pointer;font-size:14px;color:var(--text);';
+            div.addEventListener('mouseenter', function () { this.style.background = 'var(--bg)'; });
+            div.addEventListener('mouseleave', function () { this.style.background = 'transparent'; });
+            (function (action) {
+                div.addEventListener('click', function () { action(); self._hideContextMenu(); });
+            })(item.action);
+            menu.appendChild(div);
+        }
+
+        document.body.appendChild(menu);
+        this._contextMenu = menu;
+
+        // 点击其他地方关闭菜单
+        setTimeout(function () {
+            document.addEventListener('click', self._hideContextMenu, { once: true });
+        }, 10);
+    },
+
+    _hideContextMenu: function () {
+        if (this._contextMenu) {
+            this._contextMenu.remove();
+            this._contextMenu = null;
+        }
+    },
+
+    _recallMessage: async function (msg) {
+        var self = this;
+        try {
+            await MessageAPI.recall(msg.id);
+            var idx = self._findMsgIndex(msg.id);
+            if (idx >= 0) {
+                self._messages[idx].content = '消息已被撤回';
+                self._messages[idx].type = 'RECALL';
+                self._messages[idx].recalledAt = new Date().toISOString();
+                self._renderMessages();
+            }
+        } catch (e) {
+            toast(e.message || '撤回失败', 'error');
+        }
+    },
+
+    _forwardMessage: function (msg) {
+        // 弹出转发目标选择：好友列表
+        this._showForwardModal(msg);
+    },
+
+    _showForwardModal: function (msg) {
+        var self = this;
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;display:flex;justify-content:center;align-items:center;';
+        overlay.innerHTML = '<div style="background:var(--card);border-radius:12px;padding:20px;width:90%;max-width:360px;max-height:70vh;overflow-y:auto;">'
+            + '<h3 style="margin:0 0 12px;">转发消息</h3>'
+            + '<div id="forwardList" style="max-height:300px;overflow-y:auto;">加载中...</div>'
+            + '<div style="text-align:right;margin-top:12px;"><button class="btn btn-outline btn-sm" id="forwardCancel">取消</button></div>'
+            + '</div>';
+        document.body.appendChild(overlay);
+
+        document.getElementById('forwardCancel').addEventListener('click', function () { overlay.remove(); });
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+
+        // 加载好友列表（从会话列表）
+        MessageAPI.conversations().then(function (res) {
+            var convs = res.data || [];
+            var html = '';
+            if (convs.length === 0) {
+                html = '<div class="empty-state" style="padding:20px;">暂无好友</div>';
+            }
+            for (var i = 0; i < convs.length; i++) {
+                var c = convs[i];
+                if (!c.targetUser) continue;
+                html += '<div class="forward-user-item" style="display:flex;align-items:center;padding:10px;cursor:pointer;border-radius:8px;" '
+                    + 'data-userid="' + c.targetUser.id + '" data-nickname="' + self._escapeHtml(c.targetUser.nickname || '') + '">'
+                    + '<div style="width:36px;height:36px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;margin-right:12px;font-size:14px;">'
+                    + (c.targetUser.nickname || '?').charAt(0).toUpperCase() + '</div>'
+                    + '<span style="flex:1;">' + self._escapeHtml(c.targetUser.nickname || '用户' + c.targetUser.id) + '</span>'
+                    + '</div>';
+            }
+            var listEl = document.getElementById('forwardList');
+            if (listEl) listEl.innerHTML = html;
+
+            // 绑定点击事件
+            var items = overlay.querySelectorAll('.forward-user-item');
+            for (var j = 0; j < items.length; j++) {
+                items[j].addEventListener('click', function () {
+                    var uid = parseInt(this.dataset.userid);
+                    overlay.remove();
+                    self._doForward(msg, uid);
+                });
+            }
+        }).catch(function () {
+            var listEl = document.getElementById('forwardList');
+            if (listEl) listEl.innerHTML = '<div class="empty-state" style="padding:20px;">加载失败</div>';
+        });
+    },
+
+    _doForward: async function (msg, targetUserId) {
+        try {
+            await MessageAPI.forward(msg.id, targetUserId);
+            toast('转发成功');
+        } catch (e) {
+            toast(e.message || '转发失败', 'error');
+        }
+    },
+
     // ========== 渲染 ==========
 
     _renderMessages: function (keepScroll) {
@@ -309,6 +459,7 @@ const ChatRoomPage = {
         for (var i = 0; i < this._messages.length; i++) {
             var m = this._messages[i];
             var isMe = m.senderId === curId;
+            var isRecall = m.type === 'RECALL';
             var time = self._formatMsgTime(m.sentAt);
             var statusIcon = '';
             if (isMe) {
@@ -323,9 +474,15 @@ const ChatRoomPage = {
                 }
             }
 
+            if (isRecall) {
+                html += '<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:12px;">'
+                    + '<span style="background:var(--border);padding:4px 12px;border-radius:10px;">' + (isMe ? '你' : '对方') + '撤回了一条消息</span></div>';
+                continue;
+            }
+
             html += `
             <div class="msg-row ${isMe ? 'msg-me' : 'msg-other'}">
-                <div class="msg-bubble ${isMe ? 'bubble-me' : 'bubble-other'}">
+                <div class="msg-bubble ${isMe ? 'bubble-me' : 'bubble-other'}" data-msgid="${m.id}">
                     <div class="msg-text">${self._escapeHtml(m.content)}</div>
                 </div>
                 <div class="msg-meta">
@@ -336,6 +493,22 @@ const ChatRoomPage = {
         }
 
         el.innerHTML = html;
+
+        // 绑定右键菜单
+        var bubbles = el.querySelectorAll('.msg-bubble[data-msgid]');
+        for (var i = 0; i < bubbles.length; i++) {
+            (function (bubbleEl) {
+                bubbleEl.addEventListener('contextmenu', function (e) {
+                    e.preventDefault();
+                    var msgId = parseInt(this.dataset.msgid);
+                    var msg = null;
+                    for (var j = 0; j < self._messages.length; j++) {
+                        if (self._messages[j].id === msgId) { msg = self._messages[j]; break; }
+                    }
+                    if (msg) self._showContextMenu(e, msg);
+                });
+            })(bubbles[i]);
+        }
 
         if (keepScroll) {
             var newScrollHeight = el.scrollHeight;

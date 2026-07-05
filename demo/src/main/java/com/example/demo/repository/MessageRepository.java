@@ -31,4 +31,8 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     /** 小队群聊新消息轮询 */
     @Query("SELECT m FROM Message m WHERE m.teamId = :teamId AND m.sentAt > :since ORDER BY m.sentAt ASC")
     List<Message> findNewTeamMessages(@Param("teamId") Long teamId, @Param("since") LocalDateTime since);
+
+    /** 小队群文件列表（TYPE=FILE 且未撤回） */
+    @Query("SELECT m FROM Message m WHERE m.teamId = :teamId AND m.type = 'FILE' AND m.recalledAt IS NULL ORDER BY m.sentAt DESC")
+    List<Message> findTeamFiles(@Param("teamId") Long teamId);
 }

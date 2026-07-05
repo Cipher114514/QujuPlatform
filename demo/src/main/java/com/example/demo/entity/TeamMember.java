@@ -26,7 +26,7 @@ public class TeamMember {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    /** 角色: LEADER(队长), MEMBER(普通成员) */
+    /** 角色: LEADER(队长), ADMIN(管理员), MEMBER(普通成员) */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
@@ -42,6 +42,6 @@ public class TeamMember {
     }
 
     public enum MemberRole {
-        LEADER, MEMBER
+        LEADER, ADMIN, MEMBER
     }
 }

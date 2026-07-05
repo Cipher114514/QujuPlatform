@@ -333,6 +333,15 @@ public class TeamService {
      */
     @Transactional
     public TeamMessageItem sendTeamMessage(Long teamId, Long senderId, String content) {
+        return sendTeamMessage(teamId, senderId, content, "TEXT", null, null, null);
+    }
+
+    /**
+     * 发送小队群聊消息（支持文件类型）
+     */
+    @Transactional
+    public TeamMessageItem sendTeamMessage(Long teamId, Long senderId, String content,
+                                            String type, String fileUrl, String fileName, Long fileSize) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new BusinessException("小队不存在"));
 
@@ -340,7 +349,6 @@ public class TeamService {
             throw new BusinessException("小队已解散");
         }
 
-        // 验证发送者是小队成员
         if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, senderId)) {
             throw new BusinessException("您不是该小队成员");
         }
@@ -354,14 +362,18 @@ public class TeamService {
         }
 
         User sender = userRepository.findById(senderId).orElse(null);
+        String msgType = (type != null && !type.isBlank()) ? type : "TEXT";
 
         Message msg = Message.builder()
-                .conversationId(0L)  // 群聊不使用conversationId
+                .conversationId(0L)
                 .teamId(teamId)
                 .senderId(senderId)
                 .content(content)
-                .type("TEXT")
+                .type(msgType)
                 .status("DELIVERED")
+                .fileUrl(fileUrl)
+                .fileName(fileName)
+                .fileSize(fileSize)
                 .build();
         msg = messageRepository.save(msg);
 
@@ -374,6 +386,9 @@ public class TeamService {
                 .content(msg.getContent())
                 .type(msg.getType())
                 .sentAt(msg.getSentAt())
+                .fileUrl(msg.getFileUrl())
+                .fileName(msg.getFileName())
+                .fileSize(msg.getFileSize())
                 .build();
 
         // WebSocket 广播给所有小队成员
@@ -381,6 +396,181 @@ public class TeamService {
         log.info("小队群聊广播: teamId={}, senderId={}, msgId={}", teamId, senderId, msg.getId());
 
         return result;
+    }
+
+    /**
+     * 撤回小队群聊消息
+     */
+    @Transactional
+    public TeamMessageItem recallTeamMessage(Long teamId, Long messageId, Long userId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (team.getStatus() != Team.TeamStatus.ACTIVE) {
+            throw new BusinessException("小队已解散");
+        }
+
+        TeamMember member = teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
+                .orElseThrow(() -> new BusinessException("您不是该小队成员"));
+
+        Message msg = messageRepository.findById(messageId)
+                .orElseThrow(() -> new BusinessException(404, "消息不存在"));
+
+        if (!msg.getTeamId().equals(teamId)) {
+            throw new BusinessException("消息不属于该小队");
+        }
+
+        // 只有消息发送者可以撤回
+        if (!msg.getSenderId().equals(userId)) {
+            throw new BusinessException(403, "只能撤回自己发送的消息");
+        }
+
+        if (msg.getRecalledAt() != null) {
+            throw new BusinessException("消息已被撤回");
+        }
+
+        // 检查是否在2分钟内
+        if (msg.getSentAt().plusMinutes(2).isBefore(LocalDateTime.now())) {
+            throw new BusinessException("超过2分钟无法撤回");
+        }
+
+        msg.setRecalledAt(LocalDateTime.now());
+        msg.setContent("消息已被撤回");
+        msg.setFileUrl(null);
+        msg.setFileName(null);
+        msg.setFileSize(null);
+        messageRepository.save(msg);
+
+        User sender = userRepository.findById(userId).orElse(null);
+        TeamMessageItem recallEvent = TeamMessageItem.builder()
+                .id(msg.getId())
+                .teamId(teamId)
+                .senderId(userId)
+                .senderNickname(sender != null ? sender.getNickname() : null)
+                .senderAvatar(sender != null ? sender.getAvatar() : null)
+                .content("消息已被撤回")
+                .type("RECALL")
+                .sentAt(msg.getSentAt())
+                .build();
+
+        messagingTemplate.convertAndSend("/topic/team/" + teamId, recallEvent);
+        log.info("用户 {} 撤回了小队群聊消息 teamId={}, msgId={}", userId, teamId, messageId);
+        return recallEvent;
+    }
+
+    /**
+     * 转发小队群聊消息到其他会话
+     */
+    @Transactional
+    public void forwardTeamMessage(Long teamId, Long messageId, Long userId, Long targetUserId, Long targetTeamId) {
+        TeamMember member = teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
+                .orElseThrow(() -> new BusinessException("您不是该小队成员"));
+
+        Message msg = messageRepository.findById(messageId)
+                .orElseThrow(() -> new BusinessException(404, "消息不存在"));
+
+        if (msg.getRecalledAt() != null) {
+            throw new BusinessException("已被撤回的消息无法转发");
+        }
+
+        String content = msg.getContent();
+
+        if (targetTeamId != null) {
+            // 转发到其他小队群聊
+            sendTeamMessage(targetTeamId, userId, content);
+        } else if (targetUserId != null) {
+            // 需要注入 MessageService（通过构造函数）
+            // 这里使用 private chat 方式
+            throw new BusinessException("请使用私聊转发接口");
+        } else {
+            throw new BusinessException("请指定转发目标");
+        }
+    }
+
+    /**
+     * 获取小队群文件列表（TYPE=FILE 且未撤回的消息）
+     */
+    public List<TeamMessageItem> getTeamFiles(Long teamId, Long userId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
+            throw new BusinessException("您不是该小队成员");
+        }
+
+        List<Message> fileMsgs = messageRepository.findTeamFiles(teamId);
+        List<TeamMessageItem> result = new ArrayList<>();
+        for (Message m : fileMsgs) {
+            User sender = userRepository.findById(m.getSenderId()).orElse(null);
+            result.add(TeamMessageItem.builder()
+                    .id(m.getId())
+                    .teamId(teamId)
+                    .senderId(m.getSenderId())
+                    .senderNickname(sender != null ? sender.getNickname() : null)
+                    .senderAvatar(sender != null ? sender.getAvatar() : null)
+                    .content(m.getContent())
+                    .type(m.getType())
+                    .sentAt(m.getSentAt())
+                    .fileUrl(m.getFileUrl())
+                    .fileName(m.getFileName())
+                    .fileSize(m.getFileSize())
+                    .build());
+        }
+        return result;
+    }
+
+    /**
+     * 删除群文件（上传者/队长/管理员可删除，本质上是撤回文件消息）
+     */
+    @Transactional
+    public void deleteTeamFile(Long teamId, Long messageId, Long userId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new BusinessException("小队不存在"));
+
+        TeamMember member = teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
+                .orElseThrow(() -> new BusinessException("您不是该小队成员"));
+
+        Message msg = messageRepository.findById(messageId)
+                .orElseThrow(() -> new BusinessException(404, "文件不存在"));
+
+        if (!msg.getTeamId().equals(teamId)) {
+            throw new BusinessException("文件不属于该小队");
+        }
+
+        if (!"FILE".equals(msg.getType())) {
+            throw new BusinessException("该消息不是文件类型");
+        }
+
+        // 权限检查：上传者、队长、管理员可删除
+        boolean isUploader = msg.getSenderId().equals(userId);
+        boolean isLeader = team.getLeaderId().equals(userId);
+        boolean isAdmin = member.getRole() == TeamMember.MemberRole.ADMIN;
+        if (!isUploader && !isLeader && !isAdmin) {
+            throw new BusinessException("只有上传者、队长或管理员可以删除文件");
+        }
+
+        msg.setRecalledAt(LocalDateTime.now());
+        msg.setContent("文件已被删除");
+        msg.setFileUrl(null);
+        msg.setFileName(null);
+        msg.setFileSize(null);
+        messageRepository.save(msg);
+
+        // WS 广播删除事件
+        User sender = userRepository.findById(userId).orElse(null);
+        TeamMessageItem deleteEvent = TeamMessageItem.builder()
+                .id(msg.getId())
+                .teamId(teamId)
+                .senderId(userId)
+                .senderNickname(sender != null ? sender.getNickname() : null)
+                .senderAvatar(sender != null ? sender.getAvatar() : null)
+                .content("文件已被删除")
+                .type("RECALL")
+                .sentAt(msg.getSentAt())
+                .build();
+        messagingTemplate.convertAndSend("/topic/team/" + teamId, deleteEvent);
+
+        log.info("用户 {} 删除了小队 {} 的群文件 msgId={}", userId, teamId, messageId);
     }
 
     /**
@@ -410,6 +600,10 @@ public class TeamService {
                     .content(m.getContent())
                     .type(m.getType())
                     .sentAt(m.getSentAt())
+                    .recalledAt(m.getRecalledAt())
+                    .fileUrl(m.getFileUrl())
+                    .fileName(m.getFileName())
+                    .fileSize(m.getFileSize())
                     .build());
         }
 
@@ -758,6 +952,10 @@ public class TeamService {
         private String content;
         private String type;
         private LocalDateTime sentAt;
+        private LocalDateTime recalledAt;
+        private String fileUrl;
+        private String fileName;
+        private Long fileSize;
     }
 
     @Data @Builder

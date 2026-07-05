@@ -52,9 +52,30 @@ public class MessageController {
         return Result.ok(messageService.getNewMessages(currentUser.getId(), conversationId, since));
     }
 
+    @PutMapping("/{id}/recall")
+    public Result<?> recallMessage(@AuthenticationPrincipal User currentUser,
+                                    @PathVariable Long id) {
+        return Result.ok("消息已撤回", messageService.recallMessage(currentUser.getId(), id));
+    }
+
+    @PostMapping("/{id}/forward")
+    public Result<?> forwardMessage(@AuthenticationPrincipal User currentUser,
+                                     @PathVariable Long id,
+                                     @RequestBody ForwardMessageRequest req) {
+        if (req.targetUserId == null) {
+            return Result.fail("请指定转发目标用户");
+        }
+        return Result.ok("转发成功", messageService.forwardMessage(currentUser.getId(), id, req.targetUserId));
+    }
+
     @Data
     static class SendMessageRequest {
         private Long targetUserId;
         private String content;
+    }
+
+    @Data
+    static class ForwardMessageRequest {
+        private Long targetUserId;
     }
 }

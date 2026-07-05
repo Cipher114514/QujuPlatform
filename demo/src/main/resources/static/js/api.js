@@ -132,6 +132,15 @@ var MessageAPI = {
     },
     newMessages: function (conversationId, since) {
         return api('/messages/conversations/' + conversationId + '/new?since=' + encodeURIComponent(since));
+    },
+    recall: function (messageId) {
+        return api('/messages/' + messageId + '/recall', { method: 'PUT' });
+    },
+    forward: function (messageId, targetUserId) {
+        return api('/messages/' + messageId + '/forward', {
+            method: 'POST',
+            body: { targetUserId: targetUserId }
+        });
     }
 };
 
@@ -167,7 +176,13 @@ var TeamAPI = {
     uploadPhoto:   function(id, imageUrl, description) { return api('/teams/' + id + '/album', { method:'POST', body:{ imageUrl: imageUrl, description: description } }); },
     deletePhoto:   function(id, photoId) { return api('/teams/' + id + '/album/' + photoId, { method:'DELETE' }); },
     // 解散
-    disband:       function(id) { return api('/teams/' + id + '/disband', { method:'POST' }); }
+    disband:       function(id) { return api('/teams/' + id + '/disband', { method:'POST' }); },
+    // 群聊消息操作
+    recallMessage: function(teamId, messageId) { return api('/teams/' + teamId + '/messages/' + messageId + '/recall', { method:'PUT' }); },
+    forwardMessage: function(teamId, messageId, target) { return api('/teams/' + teamId + '/messages/' + messageId + '/forward', { method:'POST', body: target }); },
+    // 群文件
+    files:         function(teamId) { return api('/teams/' + teamId + '/files'); },
+    deleteFile:    function(teamId, messageId) { return api('/teams/' + teamId + '/files/' + messageId, { method:'DELETE' }); }
 };
 
 // ===== 活动评价与复盘模块 (P1) =====

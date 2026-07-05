@@ -15,6 +15,8 @@ Router.register('/team/:id/chat', {
     _lastSentAt: null,
     _pollTimer: null,
     _wsSubscribed: false,
+    _contextMenu: null,
+    _fileInput: null,
 
     render: function (params) {
         return `
@@ -22,12 +24,15 @@ Router.register('/team/:id/chat', {
             <div class="chat-header">
                 <a href="#/team/${params.id}" class="btn btn-outline btn-sm">← 返回</a>
                 <span style="font-weight:700;font-size:16px;" id="teamChatTitle">小队群聊</span>
-                <span style="width:60px;"></span>
+                <button class="btn btn-outline btn-sm" id="fileListToggle" title="群文件">📁</button>
             </div>
             <div class="chat-messages" id="chatMessages">
                 <div class="loading">加载中...</div>
             </div>
+            <div id="fileListPanel" style="display:none;background:var(--card);border-top:1px solid var(--border);padding:12px;max-height:200px;overflow-y:auto;"></div>
             <div class="chat-input-area">
+                <input type="file" id="fileUploadInput" style="display:none;" multiple />
+                <button class="btn btn-outline btn-sm" id="fileUploadBtn" title="上传文件">📎</button>
                 <input type="text" id="chatInput" class="chat-input" placeholder="输入消息..." maxlength="2000" />
                 <button class="btn btn-primary" id="chatSendBtn">发送</button>
             </div>
@@ -68,6 +73,19 @@ Router.register('/team/:id/chat', {
             }
         });
 
+        // 文件上传
+        document.getElementById('fileUploadBtn').addEventListener('click', function () {
+            document.getElementById('fileUploadInput').click();
+        });
+        document.getElementById('fileUploadInput').addEventListener('change', function () {
+            self._handleFileUpload(this.files);
+        });
+
+        // 群文件列表面板
+        document.getElementById('fileListToggle').addEventListener('click', function () {
+            self._toggleFileList();
+        });
+
         var msgArea = document.getElementById('chatMessages');
         msgArea.addEventListener('scroll', function () {
             if (msgArea.scrollTop < 50 && self._hasMore && !self._loading) {
@@ -93,11 +111,28 @@ Router.register('/team/:id/chat', {
             clearInterval(this._pollTimer);
             this._pollTimer = null;
         }
+        this._hideContextMenu();
     },
 
     // ========== WebSocket 消息处理 ==========
 
     _onWsMessage: function (msg) {
+        // 处理撤回事件
+        if (msg.type === 'RECALL') {
+            for (var i = 0; i < this._messages.length; i++) {
+                if (this._messages[i].id === msg.id) {
+                    this._messages[i].content = msg.content || '消息已被撤回';
+                    this._messages[i].type = 'RECALL';
+                    this._messages[i].recalledAt = msg.recalledAt;
+                    this._messages[i].fileUrl = null;
+                    this._messages[i].fileName = null;
+                    this._messages[i].fileSize = null;
+                    this._renderMessages();
+                    return;
+                }
+            }
+            return;
+        }
         // 去重
         for (var i = 0; i < this._messages.length; i++) {
             if (this._messages[i].id === msg.id) return;
@@ -263,6 +298,241 @@ Router.register('/team/:id/chat', {
         }
     },
 
+    // ========== 上下文菜单 & 撤回/转发 ==========
+
+    _showContextMenu: function (e, msg) {
+        this._hideContextMenu();
+        var self = this;
+        var curUser = getCurUser();
+        var isMe = msg.senderId === (curUser ? curUser.id : 0);
+        var isTeamLeader = self._teamData && self._teamData.leaderId === (curUser ? curUser.id : 0);
+        var isAdmin = self._teamData && self._teamData.userRole === 'admin';
+        var isFile = msg.type === 'FILE' && !msg.recalledAt;
+
+        var menu = document.createElement('div');
+        menu.className = 'context-menu';
+        menu.style.cssText = 'position:fixed;z-index:9999;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:4px 0;min-width:120px;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+        menu.style.left = e.clientX + 'px';
+        menu.style.top = e.clientY + 'px';
+
+        var items = [];
+        var canRecall = isMe && msg.type !== 'RECALL' && msg.type !== 'SYSTEM' && !msg.recalledAt
+            && (new Date() - new Date(msg.sentAt)) < 120000;
+
+        if (canRecall) {
+            items.push({ label: '撤回', action: function () { self._recallMessage(msg); } });
+        }
+        if (msg.type !== 'RECALL' && !msg.recalledAt) {
+            items.push({ label: '转发', action: function () { self._forwardMessage(msg); } });
+        }
+        if (isFile && (isMe || isTeamLeader || isAdmin)) {
+            items.push({ label: '删除文件', action: function () { self._deleteFile(msg); } });
+        }
+
+        if (items.length === 0) { return; }
+
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            var div = document.createElement('div');
+            div.className = 'context-menu-item';
+            div.textContent = item.label;
+            div.style.cssText = 'padding:8px 16px;cursor:pointer;font-size:14px;color:' + (item.label === '删除文件' ? 'var(--danger)' : 'var(--text)') + ';';
+            div.addEventListener('mouseenter', function () { this.style.background = 'var(--bg)'; });
+            div.addEventListener('mouseleave', function () { this.style.background = 'transparent'; });
+            (function (action) {
+                div.addEventListener('click', function () { action(); self._hideContextMenu(); });
+            })(item.action);
+            menu.appendChild(div);
+        }
+
+        document.body.appendChild(menu);
+        this._contextMenu = menu;
+        setTimeout(function () {
+            document.addEventListener('click', self._hideContextMenu, { once: true });
+        }, 10);
+    },
+
+    _hideContextMenu: function () {
+        if (this._contextMenu) {
+            this._contextMenu.remove();
+            this._contextMenu = null;
+        }
+    },
+
+    _recallMessage: async function (msg) {
+        var self = this;
+        try {
+            await TeamAPI.recallMessage(self._teamId, msg.id);
+            var idx = self._findMsgIndex(msg.id);
+            if (idx >= 0) {
+                self._messages[idx].content = '消息已被撤回';
+                self._messages[idx].type = 'RECALL';
+                self._messages[idx].recalledAt = new Date().toISOString();
+                self._messages[idx].fileUrl = null;
+                self._messages[idx].fileName = null;
+                self._messages[idx].fileSize = null;
+                self._renderMessages();
+            }
+        } catch (e) {
+            toast(e.message || '撤回失败', 'error');
+        }
+    },
+
+    _forwardMessage: function (msg) {
+        this._showForwardModal(msg);
+    },
+
+    _showForwardModal: function (msg) {
+        var self = this;
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;display:flex;justify-content:center;align-items:center;';
+        overlay.innerHTML = '<div style="background:var(--card);border-radius:12px;padding:20px;width:90%;max-width:360px;max-height:70vh;overflow-y:auto;">'
+            + '<h3 style="margin:0 0 12px;">转发消息</h3>'
+            + '<div style="margin-bottom:12px;"><strong>转发到好友：</strong></div>'
+            + '<div id="forwardFriendList" style="max-height:200px;overflow-y:auto;margin-bottom:12px;">加载中...</div>'
+            + '<div style="text-align:right;"><button class="btn btn-outline btn-sm" id="forwardCancel">取消</button></div>'
+            + '</div>';
+        document.body.appendChild(overlay);
+
+        document.getElementById('forwardCancel').addEventListener('click', function () { overlay.remove(); });
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+
+        MessageAPI.conversations().then(function (res) {
+            var convs = res.data || [];
+            var html = '';
+            if (convs.length === 0) { html = '<div class="empty-state" style="padding:10px;">暂无好友</div>'; }
+            for (var i = 0; i < convs.length; i++) {
+                var c = convs[i];
+                if (!c.targetUser) continue;
+                html += '<div class="forward-friend-item" style="display:flex;align-items:center;padding:8px;cursor:pointer;border-radius:8px;" data-userid="' + c.targetUser.id + '">'
+                    + '<div style="width:32px;height:32px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;margin-right:10px;font-size:12px;">'
+                    + (c.targetUser.nickname || '?').charAt(0).toUpperCase() + '</div>'
+                    + '<span>' + self._escapeHtml(c.targetUser.nickname || '用户' + c.targetUser.id) + '</span>'
+                    + '</div>';
+            }
+            var el = document.getElementById('forwardFriendList');
+            if (el) el.innerHTML = html;
+            var items = overlay.querySelectorAll('.forward-friend-item');
+            for (var j = 0; j < items.length; j++) {
+                items[j].addEventListener('click', function () {
+                    var uid = parseInt(this.dataset.userid);
+                    overlay.remove();
+                    self._doForward(msg, uid);
+                });
+            }
+        }).catch(function () {
+            var el = document.getElementById('forwardFriendList');
+            if (el) el.innerHTML = '<div class="empty-state" style="padding:10px;">加载失败</div>';
+        });
+    },
+
+    _doForward: async function (msg, targetUserId) {
+        try {
+            await MessageAPI.forward(msg.id, targetUserId);
+            toast('转发成功');
+        } catch (e) {
+            toast(e.message || '转发失败', 'error');
+        }
+    },
+
+    // ========== 文件上传 ==========
+
+    _handleFileUpload: async function (files) {
+        if (!files || files.length === 0) return;
+        var self = this;
+        for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+            if (file.size > 10 * 1024 * 1024) {
+                toast('文件 ' + file.name + ' 超过10MB限制', 'error');
+                continue;
+            }
+            try {
+                var uploadRes = await UploadAPI.upload(file, 'chat');
+                var fileData = uploadRes.data;
+                // 发送文件消息
+                var content = JSON.stringify({
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileUrl: fileData.url || fileData
+                });
+                await api('/teams/' + self._teamId + '/messages', {
+                    method: 'POST',
+                    body: {
+                        content: content,
+                        type: 'FILE',
+                        fileUrl: fileData.url || fileData,
+                        fileName: file.name,
+                        fileSize: file.size
+                    }
+                });
+                toast(file.name + ' 上传成功');
+            } catch (e) {
+                toast('上传 ' + file.name + ' 失败: ' + (e.message || '未知错误'), 'error');
+            }
+        }
+        // 清空input以支持重复上传同一文件
+        document.getElementById('fileUploadInput').value = '';
+    },
+
+    _deleteFile: async function (msg) {
+        if (!confirm('确定要删除该文件吗？')) return;
+        try {
+            await TeamAPI.deleteFile(this._teamId, msg.id);
+            var idx = this._findMsgIndex(msg.id);
+            if (idx >= 0) {
+                this._messages[idx].content = '文件已被删除';
+                this._messages[idx].type = 'RECALL';
+                this._messages[idx].recalledAt = new Date().toISOString();
+                this._messages[idx].fileUrl = null;
+                this._messages[idx].fileName = null;
+                this._messages[idx].fileSize = null;
+                this._renderMessages();
+            }
+        } catch (e) {
+            toast(e.message || '删除失败', 'error');
+        }
+    },
+
+    _toggleFileList: async function () {
+        var panel = document.getElementById('fileListPanel');
+        if (!panel) return;
+        if (panel.style.display === 'none') {
+            panel.style.display = 'block';
+            await this._loadFileList();
+        } else {
+            panel.style.display = 'none';
+        }
+    },
+
+    _loadFileList: async function () {
+        var panel = document.getElementById('fileListPanel');
+        if (!panel) return;
+        try {
+            var res = await TeamAPI.files(this._teamId);
+            var files = res.data || [];
+            if (files.length === 0) {
+                panel.innerHTML = '<div style="color:var(--text-secondary);font-size:13px;padding:8px;">暂无共享文件</div>';
+                return;
+            }
+            var self = this;
+            var html = '<div style="font-weight:600;margin-bottom:8px;font-size:14px;">群文件 (' + files.length + ')</div>';
+            for (var i = 0; i < files.length; i++) {
+                var f = files[i];
+                var sizeStr = f.fileSize ? (f.fileSize < 1024 * 1024 ? Math.round(f.fileSize / 1024) + 'KB' : (f.fileSize / (1024 * 1024)).toFixed(2) + 'MB') : '';
+                html += '<div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">'
+                    + '<span style="margin-right:8px;">📄</span>'
+                    + '<a href="' + self._escapeHtml(f.fileUrl || '') + '" target="_blank" style="flex:1;color:var(--primary);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+                    + self._escapeHtml(f.fileName || f.content) + '</a>'
+                    + '<span style="color:var(--text-secondary);margin-left:8px;white-space:nowrap;">' + sizeStr + '</span>'
+                    + '<span style="color:var(--text-secondary);margin-left:8px;font-size:11px;">' + self._escapeHtml(f.senderNickname || '') + '</span>'
+                    + '</div>';
+            }
+            panel.innerHTML = html;
+        } catch (e) {
+            panel.innerHTML = '<div style="color:var(--text-secondary);font-size:13px;padding:8px;">加载文件列表失败</div>';
+        }
+    },
+
     // ========== 渲染 ==========
 
     _renderMessages: function (keepScroll) {
@@ -290,13 +560,21 @@ Router.register('/team/:id/chat', {
             var m = this._messages[i];
             var isMe = m.senderId === curId;
             var isSystem = m.type === 'SYSTEM';
+            var isRecall = m.type === 'RECALL';
+            var isFile = m.type === 'FILE' && !m.recalledAt;
             var time = self._formatMsgTime(m.sentAt);
 
             if (isSystem) {
-                // 系统消息居中展示
-                html += '<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:12px;">' +
-                    '<span style="background:var(--border);padding:4px 12px;border-radius:10px;">' +
-                    self._escapeHtml(m.content) + '</span></div>';
+                html += '<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:12px;">'
+                    + '<span style="background:var(--border);padding:4px 12px;border-radius:10px;">'
+                    + self._escapeHtml(m.content) + '</span></div>';
+                continue;
+            }
+
+            if (isRecall) {
+                var who = isMe ? '你' : (m.senderNickname || '用户' + m.senderId);
+                html += '<div style="text-align:center;padding:6px;color:var(--text-secondary);font-size:12px;">'
+                    + '<span style="background:var(--border);padding:3px 10px;border-radius:10px;">' + who + '撤回了一条消息</span></div>';
                 continue;
             }
 
@@ -307,12 +585,48 @@ Router.register('/team/:id/chat', {
                 statusIcon = '<span style="font-size:10px;color:#e74c3c;">发送失败</span>';
             }
 
+            if (isFile) {
+                // 解析文件信息（支持新旧两种格式）
+                var fileName = m.fileName || '';
+                var fileUrl = m.fileUrl || '';
+                var fileSize = m.fileSize || 0;
+                // 兼容content为JSON格式的文件信息
+                if (!fileName && m.content) {
+                    try {
+                        var parsed = JSON.parse(m.content);
+                        fileName = parsed.fileName || '';
+                        fileUrl = parsed.fileUrl || '';
+                        fileSize = parsed.fileSize || 0;
+                    } catch (e) {}
+                }
+                var sizeStr = fileSize ? (fileSize < 1024 * 1024 ? Math.round(fileSize / 1024) + 'KB' : (fileSize / (1024 * 1024)).toFixed(2) + 'MB') : '';
+
+                html += '<div class="msg-row ' + (isMe ? 'msg-me' : 'msg-other') + '" style="display:flex;flex-direction:row;align-items:flex-start;max-width:90%;' + (isMe ? 'margin-left:auto;' : 'margin-right:auto;') + '">'
+                    + (!isMe ? '<img src="' + (m.senderAvatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + m.senderId) + '" class="msg-avatar" alt="" />' : '')
+                    + '<div class="msg-content-wrap" style="' + (isMe ? 'align-items:flex-end;' : 'align-items:flex-start;') + '">'
+                    + (!isMe ? '<div class="msg-sender-name">' + self._escapeHtml(m.senderNickname || '用户' + m.senderId) + '</div>' : '')
+                    + '<div class="msg-bubble ' + (isMe ? 'bubble-me' : 'bubble-other') + '" data-msgid="' + m.id + '" style="max-width:250px;">'
+                    + '<div style="display:flex;align-items:center;gap:8px;">'
+                    + '<span style="font-size:20px;">📄</span>'
+                    + '<div style="min-width:0;">'
+                    + '<a href="' + self._escapeHtml(fileUrl) + '" target="_blank" style="color:' + (isMe ? '#fff' : 'var(--primary)') + ';text-decoration:underline;font-size:13px;word-break:break-all;">'
+                    + self._escapeHtml(fileName || '未知文件') + '</a>'
+                    + (sizeStr ? '<div style="font-size:11px;color:' + (isMe ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)') + ';">' + sizeStr + '</div>' : '')
+                    + '</div></div></div>'
+                    + '<div class="msg-meta" style="text-align:' + (isMe ? 'right' : 'left') + '">'
+                    + '<span class="msg-time">' + time + '</span>' + statusIcon + '</div>'
+                    + '</div>'
+                    + (isMe ? '<img src="' + (m.senderAvatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + m.senderId) + '" class="msg-avatar" alt="" />' : '')
+                    + '</div>';
+                continue;
+            }
+
             html += `
             <div class="msg-row ${isMe ? 'msg-me' : 'msg-other'}" style="display:flex;flex-direction:row;align-items:flex-start;max-width:90%;${isMe ? 'margin-left:auto;' : 'margin-right:auto;'}">
                 ${!isMe ? '<img src="' + (m.senderAvatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + m.senderId) + '" class="msg-avatar" alt="" />' : ''}
                 <div class="msg-content-wrap" style="${isMe ? 'align-items:flex-end;' : 'align-items:flex-start;'}">
                     ${!isMe ? '<div class="msg-sender-name">' + self._escapeHtml(m.senderNickname || '用户' + m.senderId) + '</div>' : ''}
-                    <div class="msg-bubble ${isMe ? 'bubble-me' : 'bubble-other'}">
+                    <div class="msg-bubble ${isMe ? 'bubble-me' : 'bubble-other'}" data-msgid="${m.id}">
                         <div class="msg-text">${self._escapeHtml(m.content)}</div>
                     </div>
                     <div class="msg-meta" style="text-align:${isMe ? 'right' : 'left'}">
@@ -325,6 +639,22 @@ Router.register('/team/:id/chat', {
         }
 
         el.innerHTML = html;
+
+        // 绑定右键菜单
+        var bubbles = el.querySelectorAll('.msg-bubble[data-msgid]');
+        for (var i = 0; i < bubbles.length; i++) {
+            (function (bubbleEl) {
+                bubbleEl.addEventListener('contextmenu', function (e) {
+                    e.preventDefault();
+                    var msgId = parseInt(this.dataset.msgid);
+                    var msg = null;
+                    for (var j = 0; j < self._messages.length; j++) {
+                        if (self._messages[j].id === msgId) { msg = self._messages[j]; break; }
+                    }
+                    if (msg) self._showContextMenu(e, msg);
+                });
+            })(bubbles[i]);
+        }
 
         if (keepScroll) {
             var newScrollHeight = el.scrollHeight;

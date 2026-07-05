@@ -43,6 +43,18 @@ public class Message {
 
     private LocalDateTime recalledAt;
 
+    // ===== 文件消息字段 =====
+    /** 文件访问URL */
+    @Column(length = 500)
+    private String fileUrl;
+
+    /** 文件名 */
+    @Column(length = 200)
+    private String fileName;
+
+    /** 文件大小（字节） */
+    private Long fileSize;
+
     @PrePersist
     void onCreate() {
         sentAt = LocalDateTime.now();
