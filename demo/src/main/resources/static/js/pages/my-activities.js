@@ -65,7 +65,7 @@ async function loadMyActivities() {
             var a = data[i];
             html += renderMyActivityCard(a);
         }
-        container.innerHTML = '<div class="activity-list">' + html + '</div>';
+        container.innerHTML = '<div class="home-feed-list">' + html + '</div>';
 
         bindMyCardEvents();
     } catch (err) {
@@ -78,38 +78,39 @@ async function loadMyActivities() {
 }
 
 function renderMyActivityCard(a) {
-    var statusMap = { ACTIVE: '报名中', FULL: '已满员', ENDED: '已结束', CANCELLED: '已取消', PENDING: '待审核' };
-    var statusClassMap = { ACTIVE: 'success', FULL: 'danger', ENDED: 'secondary', CANCELLED: 'secondary', PENDING: 'warning' };
-
-    // 基于时间覆盖状态（后端可能未自动将status更新为ENDED）
     var statusInfo = getTimeBasedStatus(a);
     var statusLabel = statusInfo.label;
     var statusCls = statusInfo.cls;
     var catLabel = getCatLabelMyAct(a.category);
     var timeStr = a.startTime ? formatMyTime(a.startTime) : '时间待定';
+    var catIcon = ({sports:'⚽', hiking:'🏔️', boardgame:'🎲', study:'📚', charity:'🤝', citywalk:'🚶'})[a.category] || '📌';
+    var feeStr = a.fee > 0 ? '¥' + a.fee : '免费';
 
     return '\
-    <div class="activity-card my-activity-card" data-id="' + a.id + '">\
-        <div class="my-card-header">\
-            <span class="title">' + escHtmlMyAct(a.title) + '</span>\
-            <span class="status-badge status-' + statusCls + '">' + statusLabel + '</span>\
-        </div>\
-        <div class="meta" style="margin-top:6px;">\
-            <span class="category-tag">' + catLabel + '</span>\
-            <span>' + timeStr + '</span>\
-            <span>' + (a.location || '') + '</span>\
-        </div>\
-        <div class="meta" style="margin-top:4px;">\
-            <span>已报 ' + a.currentParticipants + '/' + a.maxParticipants + ' 人</span>\
-            ' + (a.fee > 0 ? '<span>费用 ' + a.fee + ' 元</span>' : '<span style="color:var(--success);">免费</span>') + '\
-        </div>\
-        <div class="my-card-actions">\
-            <button class="btn btn-outline btn-sm btn-view" data-id="' + a.id + '">查看</button>\
-            <button class="btn btn-outline btn-sm btn-clone" data-id="' + a.id + '">克隆</button>\
-            ' + (statusInfo.isActive ? '\
-            <button class="btn btn-outline btn-sm btn-edit" data-id="' + a.id + '">编辑</button>\
-            <button class="btn btn-outline btn-sm btn-cancel" data-id="' + a.id + '" style="color:var(--danger);">撤销</button>\
-            ' : '') + '\
+    <div class="home-feed-card" data-id="' + a.id + '">\
+        <div class="home-feed-cover placeholder ' + escHtmlMyAct(a.category || '') + '">' + catIcon + '</div>\
+        <div class="home-feed-body">\
+            <div class="feed-title">' + escHtmlMyAct(a.title) + '</div>\
+            <div class="feed-meta">\
+                <span class="home-feed-badge" style="background:#eef2ff;color:#4f46e5;">' + catLabel + '</span>\
+                <span class="status-badge status-' + statusCls + '">' + statusLabel + '</span>\
+            </div>\
+            <div class="feed-meta">\
+                <span>📅 ' + escHtmlMyAct(timeStr) + '</span>\
+                <span>📍 ' + escHtmlMyAct(a.location || '') + '</span>\
+            </div>\
+            <div class="feed-meta">\
+                <span>👥 ' + a.currentParticipants + '/' + a.maxParticipants + ' 人</span>\
+                <span style="color:var(--primary);font-weight:600;">' + feeStr + '</span>\
+            </div>\
+            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">\
+                <button class="btn btn-outline btn-sm btn-view" data-id="' + a.id + '" style="width:auto;">查看</button>\
+                <button class="btn btn-outline btn-sm btn-clone" data-id="' + a.id + '" style="width:auto;">克隆</button>\
+                ' + (statusInfo.isActive ? '\
+                <button class="btn btn-outline btn-sm btn-edit" data-id="' + a.id + '" style="width:auto;">编辑</button>\
+                <button class="btn btn-outline btn-sm btn-cancel" data-id="' + a.id + '" style="width:auto;color:var(--danger);">撤销</button>\
+                ' : '') + '\
+            </div>\
         </div>\
     </div>';
 }
@@ -198,14 +199,14 @@ function formatMyTime(iso) {
 // 基于时间判断活动状态，覆盖后端可能未更新的status字段
 function getTimeBasedStatus(a) {
     var now = new Date();
-    if (a.status === 'CANCELLED') return { label: '已取消', cls: 'secondary', isActive: false };
-    if (a.endTime && now > new Date(a.endTime)) return { label: '已结束', cls: 'secondary', isActive: false };
-    if (a.startTime && now > new Date(a.startTime)) return { label: '进行中', cls: 'success', isActive: true };
-    if (a.registrationDeadline && now > new Date(a.registrationDeadline)) return { label: '报名截止', cls: 'warning', isActive: true };
-    if (a.status === 'ACTIVE') return { label: '报名中', cls: 'success', isActive: true };
-    if (a.status === 'FULL') return { label: '已满员', cls: 'danger', isActive: true };
-    if (a.status === 'PENDING') return { label: '待审核', cls: 'warning', isActive: false };
-    return { label: a.status || '未知', cls: 'secondary', isActive: false };
+    if (a.status === 'CANCELLED') return { label: '已取消', cls: 'ended', isActive: false };
+    if (a.endTime && now > new Date(a.endTime)) return { label: '已结束', cls: 'ended', isActive: false };
+    if (a.startTime && now > new Date(a.startTime)) return { label: '进行中', cls: 'active', isActive: true };
+    if (a.registrationDeadline && now > new Date(a.registrationDeadline)) return { label: '报名截止', cls: 'closed', isActive: true };
+    if (a.status === 'ACTIVE') return { label: '报名中', cls: 'open', isActive: true };
+    if (a.status === 'FULL') return { label: '已满员', cls: 'ended', isActive: true };
+    if (a.status === 'PENDING') return { label: '待审核', cls: 'closed', isActive: false };
+    return { label: a.status || '未知', cls: 'ended', isActive: false };
 }
 
 // ====== US-008 草稿箱 ======
