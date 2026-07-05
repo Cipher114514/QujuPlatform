@@ -1,4 +1,4 @@
-﻿// ====== 用户发现页（US-026） ======
+// ====== 用户发现页（US-026） ======
 // 功能：搜索用户、查看推荐用户、关注用户
 // 负责人：P9
 
@@ -8,18 +8,16 @@ Router.register('/discover', {
 
     render: function() {
         return `
-        <div class="discover-page">
-            <div class="discover-header">
-                <h1>发现用户</h1>
-                <p class="subtitle">搜索或推荐关注有趣的人</p>
+        <div class="home-content">
+            <div class="welcome-card">
+                <h2>发现用户</h2>
+                <p>搜索或推荐关注有趣的人</p>
             </div>
 
             <!-- 搜索区域 -->
-            <div class="search-section">
-                <div class="search-box">
-                    <input type="text" id="searchInput" placeholder="搜索用户昵称..." />
-                    <button id="searchBtn">搜索</button>
-                </div>
+            <div style="display:flex;gap:8px;margin-bottom:16px;">
+                <input type="text" id="searchInput" placeholder="搜索用户昵称..." style="flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;" />
+                <button id="searchBtn" class="btn btn-primary btn-sm" style="width:auto;padding:10px 20px;">搜索</button>
             </div>
 
             <!-- 用户列表 -->

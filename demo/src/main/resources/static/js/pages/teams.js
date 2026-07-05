@@ -1,4 +1,4 @@
-﻿// ====== 兴趣小队发现页（US-027） ======
+// ====== 兴趣小队发现页（US-027） ======
 // 功能：搜索小队、按标签筛选、查看小队列表、创建小队
 // 负责人：P5
 
@@ -22,19 +22,19 @@ Router.register('/teams', {
         ];
 
         return `
-        <div class="teams-page">
-            <div class="teams-header">
-                <h1>兴趣小队</h1>
-                <p class="subtitle">发现同好，创建或加入属于你的圈子</p>
+        <div class="home-content">
+            <div class="welcome-card" style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <h2>兴趣小队</h2>
+                    <p>发现同好，创建或加入属于你的圈子</p>
+                </div>
+                <button id="createTeamBtnTop" class="btn btn-primary btn-sm" style="width:auto;white-space:nowrap;">+ 创建小队</button>
             </div>
 
             <!-- 搜索区域 -->
-            <div class="teams-search-section">
-                <div class="search-box">
-                    <input type="text" id="searchInput" placeholder="搜索小队名称或简介..." />
-                    <button id="searchBtn">搜索</button>
-                </div>
-                <button id="createTeamBtn" class="btn btn-primary">➕ 创建小队</button>
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+                <input type="text" id="searchInput" placeholder="搜索小队名称或简介..." style="flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;" />
+                <button id="searchBtn" class="btn btn-primary btn-sm" style="width:auto;padding:10px 20px;">搜索</button>
             </div>
 
             <!-- 标签筛选 -->
@@ -52,7 +52,7 @@ Router.register('/teams', {
                     <span id="listTitle">发现小队</span>
                     <span id="resultCount" class="result-count"></span>
                 </div>
-                <div id="teamsList" class="teams-list">
+                <div id="teamsList" class="home-feed-list">
                     <div class="loading">加载中...</div>
                 </div>
             </div>
@@ -124,20 +124,6 @@ Router.register('/teams', {
         let currentPage = 1;
         let selectedTags = [];
 
-        // 预设标签列表
-        const PRESET_TAGS = [
-            '运动', '户外', '徒步', '篮球', '羽毛球', '足球', '瑜伽',
-            '桌游', '聚会', '交友', '狼人杀', '剧本杀',
-            '学习', '读书', '编程', '语言学习',
-            '音乐', '电影', '摄影', '艺术',
-            '游戏', '电竞',
-            '美食', '烹饪',
-            '旅行', '城市漫步', '城市探索',
-            '公益', '志愿', '环保',
-            '健身', '跑步',
-            '其他'
-        ];
-
         // Mock数据
         const MOCK_TEAMS = [
             { id: 1, name: '周末徒步小队', description: '每周组织周边徒步活动，亲近自然', tags: ['户外', '徒步', '运动'], isPublic: true, memberCount: 128, leaderId: 2, leaderNickname: '户外达人', userRole: null, hasRequested: false },
@@ -157,7 +143,6 @@ Router.register('/teams', {
                 let data;
                 if (USE_MOCK) {
                     await new Promise(resolve => setTimeout(resolve, 500));
-                    // Mock数据筛选
                     let filteredTeams = MOCK_TEAMS;
                     if (currentTag) {
                         filteredTeams = filteredTeams.filter(t => t.tags && t.tags.includes(currentTag));
@@ -194,7 +179,6 @@ Router.register('/teams', {
             const emptyText = document.getElementById('emptyText');
             const resultCount = document.getElementById('resultCount');
 
-            // 显示结果数量
             if (teams.length > 0) {
                 resultCount.textContent = `(${teams.length}个)`;
             } else {
@@ -217,43 +201,47 @@ Router.register('/teams', {
             container.style.display = 'grid';
             emptyState.style.display = 'none';
 
-            container.innerHTML = teams.map(team => `
-                <div class="team-card" data-team-id="${team.id}">
-                    <div class="team-card-header">
-                        <h3 class="team-name">
-                            <a href="#/team/${team.id}">${team.name}</a>
-                            ${team.isPublic ? '<span class="team-type-badge public">公开</span>' : '<span class="team-type-badge private">审核</span>'}
-                        </h3>
-                        <p class="team-desc">${team.description || '暂无简介'}</p>
-                    </div>
-                    <div class="team-tags">
-                        ${(team.tags || []).map(tag => `<span class="tag">${tag}</span>`).join('')}
-                    </div>
-                    <div class="team-card-footer">
-                        <div class="team-meta">
-                            <span>👤 队长: ${team.leaderNickname || '未知'}</span>
-                            <span>👥 ${team.memberCount || 0} 成员</span>
-                        </div>
-                        ${renderTeamAction(team)}
-                    </div>
-                </div>
-            `).join('');
+            container.innerHTML = teams.map(team => {
+                var desc = team.description || '';
+                if (desc.length > 40) desc = desc.substring(0, 40) + '...';
+                var badge = team.isPublic
+                    ? '<span class="home-feed-badge" style="background:#dcfce7;color:#166534;">公开</span>'
+                    : '<span class="home-feed-badge" style="background:#fef3c7;color:#b45309;">审核</span>';
+                var actionHtml = renderTeamAction(team);
+
+                return '<div class="home-feed-card" onclick="Router.navigate(\'#/team/' + team.id + '\')">' +
+                    '<div class="home-feed-cover placeholder team">👥</div>' +
+                    '<div class="home-feed-body">' +
+                        '<div class="feed-title">' + escHtmlTeam(team.name) + '</div>' +
+                        (desc ? '<div class="feed-desc">' + escHtmlTeam(desc) + '</div>' : '') +
+                        '<div class="feed-tags">' + (team.tags || []).slice(0, 3).map(function(tag) {
+                            return '<span class="tag">' + escHtmlTeam(tag) + '</span>';
+                        }).join('') + '</div>' +
+                        '<div class="feed-meta">' +
+                            badge +
+                            '<span>👤 ' + escHtmlTeam(team.leaderNickname || '') + '</span>' +
+                            '<span>👥 ' + (team.memberCount || 0) + '人</span>' +
+                        '</div>' +
+                        '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">' + actionHtml + '</div>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
         }
 
         // 渲染小队操作按钮
         function renderTeamAction(team) {
             if (team.userRole === 'leader') {
-                return `<a href="#/team/${team.id}" class="btn btn-outline">管理</a>`;
+                return '<button class="btn btn-outline btn-sm" style="width:auto;" onclick="event.stopPropagation();Router.navigate(\'#/team/' + team.id + '\')">管理</button>';
             } else if (team.userRole === 'member') {
-                return `<a href="#/team/${team.id}" class="btn btn-primary">进入小队</a>`;
+                return '<button class="btn btn-primary btn-sm" style="width:auto;" onclick="event.stopPropagation();Router.navigate(\'#/team/' + team.id + '\')">进入小队</button>';
             } else if (team.requestStatus === 'pending') {
-                return `<button class="btn btn-secondary" disabled>等待审核</button>`;
+                return '<button class="btn btn-secondary btn-sm" style="width:auto;" disabled>等待审核</button>';
             } else if (team.requestStatus === 'rejected') {
-                return `<button class="btn btn-primary" onclick="showJoinRequest(${team.id})">重新申请</button>`;
+                return '<button class="btn btn-primary btn-sm" style="width:auto;" onclick="event.stopPropagation();showJoinRequest(' + team.id + ')">重新申请</button>';
             } else if (team.isPublic) {
-                return `<button class="btn btn-primary" onclick="handleJoinTeam(${team.id}, true)">一键加入</button>`;
+                return '<button class="btn btn-primary btn-sm" style="width:auto;" onclick="event.stopPropagation();handleJoinTeam(' + team.id + ', true)">一键加入</button>';
             } else {
-                return `<button class="btn btn-primary" onclick="showJoinRequest(${team.id})">申请加入</button>`;
+                return '<button class="btn btn-primary btn-sm" style="width:auto;" onclick="event.stopPropagation();showJoinRequest(' + team.id + ')">申请加入</button>';
             }
         }
 
@@ -330,7 +318,7 @@ Router.register('/teams', {
         });
 
         // 创建小队模态框
-        document.getElementById('createTeamBtn').addEventListener('click', function() {
+        document.getElementById('createTeamBtnTop').addEventListener('click', function() {
             document.getElementById('createTeamModal').style.display = 'flex';
         });
 
@@ -443,3 +431,8 @@ Router.register('/teams', {
         window.refreshTeamsList = loadTeams;
     }
 });
+
+function escHtmlTeam(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
