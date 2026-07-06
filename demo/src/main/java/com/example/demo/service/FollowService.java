@@ -111,6 +111,7 @@ public class FollowService {
     public List<UserListItemResponse> getFollowing(User currentUser) {
         List<Follow> follows = followRepository.findByFollowerId(currentUser.getId());
         return follows.stream()
+                .filter(f -> !isMutuallyBlocked(currentUser.getId(), f.getFollowingId()))
                 .map(f -> buildUserListItemResponse(currentUser, f.getFollowingId(), f.getCreatedAt()))
                 .collect(Collectors.toList());
     }
@@ -121,8 +122,17 @@ public class FollowService {
     public List<UserListItemResponse> getFollowers(User currentUser) {
         List<Follow> follows = followRepository.findByFollowingId(currentUser.getId());
         return follows.stream()
+                .filter(f -> !isMutuallyBlocked(currentUser.getId(), f.getFollowerId()))
                 .map(f -> buildUserListItemResponse(currentUser, f.getFollowerId(), f.getCreatedAt()))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 检查两个用户之间是否存在任意方向的拉黑关系
+     */
+    private boolean isMutuallyBlocked(Long userId1, Long userId2) {
+        return friendshipRepository.isBlockedBy(userId1, userId2)
+                || friendshipRepository.isBlockedBy(userId2, userId1);
     }
 
     /**

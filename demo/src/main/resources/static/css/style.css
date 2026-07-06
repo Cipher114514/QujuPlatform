@@ -135,6 +135,11 @@ body {
     background: #f1f5f9;
     color: var(--text);
 }
+.sidebar-flyout .flyout-item.active {
+    background: #eef2ff;
+    color: var(--primary);
+    font-weight: 600;
+}
 .sidebar-flyout .flyout-item .fi-icon { font-size: 14px; width: 18px; text-align: center; }
 
 /* Sidebar 底部 */

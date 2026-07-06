@@ -85,6 +85,7 @@ public class ActivityDetailService {
                 .createdAt(activity.getCreatedAt() != null ? activity.getCreatedAt().toString() : null)
                 .creator(creatorInfo)
                 .myRegistration(myReg)
+                .requireApproval(activity.getRequireApproval())
                 .avgRating(reviewRepository.getAvgRatingByActivityId(activityId))
                 .reviewCount(reviewRepository.countByActivityId(activityId))
                 .build();

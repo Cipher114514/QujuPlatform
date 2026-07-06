@@ -48,10 +48,11 @@ Router.register('/activity/:id', {
 
             var isCreator = curUser && Number(curUser.id) === Number(data.creatorId);
             var isRegistered = data.myRegistration && (data.myRegistration.status === 'CONFIRMED' || data.myRegistration.status === 'CHECKED_IN');
+            var isPending = data.myRegistration && data.myRegistration.status === 'PENDING';
             var isFull = data.currentParticipants >= data.maxParticipants;
             var statusInfo = getStatusInfo(data);
 
-            container.innerHTML = self.renderDetail(data, isCreator, isRegistered, isFull, statusInfo);
+            container.innerHTML = self.renderDetail(data, isCreator, isRegistered, isPending, isFull, statusInfo);
 
             // 绑定报名按钮事件
             var registerBtn = document.getElementById('registerBtn');
@@ -64,6 +65,30 @@ Router.register('/activity/:id', {
             // 加载留言
             self.loadComments(activityId);
             self.bindCommentEvents(activityId);
+
+            // 创建者：加载报名人清单及签到状态
+            if (isCreator) {
+                self.loadCreatorParticipantList(activityId);
+                // 绑定 Tab 切换（事件委托）
+                var pCard = document.getElementById('creatorParticipantCard');
+                if (pCard) {
+                    pCard.addEventListener('click', function(e) {
+                        var tabBtn = e.target.closest('.tab-btn');
+                        if (!tabBtn) return;
+                        var btns = pCard.querySelectorAll('.tab-btn');
+                        btns.forEach(function(b) { b.classList.remove('active'); });
+                        tabBtn.classList.add('active');
+                        if (self._creatorParticipants) {
+                            self._creatorParticipants.activeTab = tabBtn.dataset.ptab;
+                            self._renderCreatorParticipantList();
+                        }
+                    });
+                }
+                // 如果开启了审核，加载待审核列表
+                if (data.requireApproval) {
+                    self.loadPendingRegistrations(activityId);
+                }
+            }
         } catch (err) {
             container.innerHTML = `
                 <div class="card" style="text-align:center;padding:60px 20px;">
@@ -74,7 +99,7 @@ Router.register('/activity/:id', {
         }
     },
 
-    renderDetail: function(data, isCreator, isRegistered, isFull, statusInfo) {
+    renderDetail: function(data, isCreator, isRegistered, isPending, isFull, statusInfo) {
         var tagsHtml = '';
         if (data.tags && data.tags.length) {
             tagsHtml = data.tags.map(function(t) {
@@ -94,7 +119,7 @@ Router.register('/activity/:id', {
               (data.creator && data.creator.nickname ? data.creator.nickname.charAt(0) : '?') + '</div>';
 
         // 按钮区域
-        var actionHtml = this.renderActionButton(isCreator, isRegistered, isFull, data);
+        var actionHtml = this.renderActionButton(isCreator, isRegistered, isPending, isFull, data);
 
         return `
         <button class="btn btn-outline btn-sm" onclick="history.back()" style="width:auto;margin-bottom:12px;">← 返回</button>
@@ -131,6 +156,21 @@ Router.register('/activity/:id', {
 
         ${actionHtml}
 
+        <div class="card" id="creatorParticipantCard" style="display:none;margin-top:16px;">
+            <h3 style="font-size:15px;margin-bottom:12px;">报名人清单</h3>
+            <div id="creatorParticipantStats" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;"></div>
+            <div class="tabs" style="margin-bottom:12px;">
+                <button class="tab-btn active" data-ptab="unchecked">未签到</button>
+                <button class="tab-btn" data-ptab="checked">已签到</button>
+            </div>
+            <div id="creatorParticipantList">加载中...</div>
+        </div>
+
+        <div class="card" id="pendingApprovalCard" style="display:none;margin-top:16px;">
+            <h3 style="font-size:15px;margin-bottom:12px;">待审核报名 <span id="pendingCount" style="font-size:13px;color:var(--warning);"></span></h3>
+            <div id="pendingApprovalList">加载中...</div>
+        </div>
+
         <div class="card" style="margin-top:16px;">
             <h3 style="font-size:15px;margin-bottom:12px;">留言板</h3>
             <div id="commentList"><p style="color:var(--text-secondary);font-size:13px;">加载中...</p></div>
@@ -142,7 +182,7 @@ Router.register('/activity/:id', {
         `;
     },
 
-    renderActionButton: function(isCreator, isRegistered, isFull, data) {
+    renderActionButton: function(isCreator, isRegistered, isPending, isFull, data) {
         var statusInfo = getStatusInfo(data);
         var isEnded = statusInfo.cls === 'ended';
         var isCancelled = statusInfo.cls === 'cancelled';
@@ -197,6 +237,15 @@ Router.register('/activity/:id', {
             </div>`;
         }
 
+        if (isPending) {
+            return `
+            <div class="card" style="text-align:center;">
+                <p style="color:var(--warning);font-size:15px;font-weight:600;margin-bottom:12px;">⏳ 报名审核中</p>
+                <p style="color:var(--text-secondary);font-size:13px;margin-bottom:12px;">活动创建人正在审核你的报名，请耐心等待</p>
+                ${ratingHtml}
+            </div>`;
+        }
+
         if (isFull) {
             return `
             <div class="card" style="text-align:center;">
@@ -247,8 +296,12 @@ Router.register('/activity/:id', {
                 data.currentParticipants += 1;
                 toast('报名成功！');
             } else {
-                await api('/activities/' + activityId + '/register', { method: 'POST' });
-                toast('报名成功！');
+                var regRes = await api('/activities/' + activityId + '/register', { method: 'POST' });
+                if (regRes.data && regRes.data.status === 'PENDING') {
+                    toast('报名已提交，等待审核');
+                } else {
+                    toast('报名成功！');
+                }
                 // 刷新页面数据
                 var res = await api('/activities/' + activityId);
                 data = res.data;
@@ -259,9 +312,10 @@ Router.register('/activity/:id', {
             var curUser = getCurUser();
             var isCreator = curUser && Number(curUser.id) === Number(data.creatorId);
             var isRegistered = data.myRegistration && (data.myRegistration.status === 'CONFIRMED' || data.myRegistration.status === 'CHECKED_IN');
+            var isPending = data.myRegistration && data.myRegistration.status === 'PENDING';
             var isFull = data.currentParticipants >= data.maxParticipants;
             var statusInfo = getStatusInfo(data);
-            container.innerHTML = this.renderDetail(data, isCreator, isRegistered, isFull, statusInfo);
+            container.innerHTML = this.renderDetail(data, isCreator, isRegistered, isPending, isFull, statusInfo);
 
         } catch (err) {
             if (err.code === 409) {
@@ -270,13 +324,160 @@ Router.register('/activity/:id', {
                 var container = document.getElementById('detailContainer');
                 var curUser = getCurUser();
                 var statusInfo = getStatusInfo(data);
-                container.innerHTML = this.renderDetail(data, false, false, true, statusInfo);
+                container.innerHTML = this.renderDetail(data, false, false, false, true, statusInfo);
                 toast('手慢了一步，活动已满员', 'error');
             } else {
                 btn.disabled = false;
                 btn.textContent = '立即报名';
                 toast(err.message, 'error');
             }
+        }
+    },
+
+    // ====== 创建者：报名人清单及签到状态 ======
+    loadCreatorParticipantList: async function(activityId) {
+        var self = this;
+        try {
+            var res = await api('/activities/' + activityId + '/checkin/list');
+            var data = res.data || {};
+            self._creatorParticipants = { activeTab: 'unchecked', data: data };
+            self._renderCreatorParticipantList();
+        } catch (err) {
+            document.getElementById('creatorParticipantList').innerHTML =
+                '<p style="color:var(--text-secondary);font-size:13px;">加载报名人清单失败</p>';
+        }
+    },
+
+    _renderCreatorParticipantList: function() {
+        var d = this._creatorParticipants;
+        if (!d) return;
+
+        var card = document.getElementById('creatorParticipantCard');
+        if (card) card.style.display = 'block';
+
+        // 统计
+        var stats = document.getElementById('creatorParticipantStats');
+        if (stats) {
+            stats.innerHTML =
+                '<span class="status-badge status-active">总报名 ' + (d.data.total || 0) + '</span>' +
+                '<span class="status-badge status-open">已签到 ' + (d.data.checkedInCount || 0) + '</span>' +
+                '<span class="status-badge status-closed">未签到 ' + (d.data.uncheckedCount || 0) + '</span>';
+        }
+
+        // 列表
+        var items = d.activeTab === 'checked' ? (d.data.checkedInUsers || []) : (d.data.uncheckedUsers || []);
+        var box = document.getElementById('creatorParticipantList');
+        if (!box) return;
+
+        if (!items.length) {
+            box.innerHTML = '<div class="empty-state">暂无人员</div>';
+            return;
+        }
+
+        box.innerHTML = items.map(function(item) {
+            var avatar = item.avatar
+                ? '<img src="' + escapeHtml(item.avatar) + '" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">'
+                : '<div style="width:36px;height:36px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">' + (item.nickname || '?').charAt(0) + '</div>';
+            var checkedBadge = item.checkedInAt
+                ? '<span style="color:#16a34a;font-weight:600;font-size:12px;">&#10003; 已签到 ' + formatTime(item.checkedInAt) + '</span>'
+                : '<span style="color:#dc2626;font-weight:600;font-size:12px;">&#10007; 未签到</span>';
+            return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">' +
+                avatar +
+                '<div style="flex:1;min-width:0;">' +
+                    '<div style="font-size:14px;font-weight:700;">' + escapeHtml(item.nickname || '未知用户') + '</div>' +
+                    '<div style="font-size:12px;color:var(--text-secondary);">报名：' + formatTime(item.registeredAt) + ' · ' + checkedBadge + '</div>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+    },
+
+    // ====== 创建者：待审核报名 ======
+    loadPendingRegistrations: async function(activityId) {
+        var self = this;
+        try {
+            var res = await api('/activities/' + activityId + '/registrations/pending');
+            var list = res.data || [];
+            self._pendingList = list;
+            self._renderPendingList(activityId);
+        } catch (err) {
+            document.getElementById('pendingApprovalList').innerHTML =
+                '<p style="color:var(--text-secondary);font-size:13px;">加载失败</p>';
+        }
+    },
+
+    _renderPendingList: function(activityId) {
+        var card = document.getElementById('pendingApprovalCard');
+        var list = this._pendingList || [];
+        if (card) card.style.display = 'block';
+
+        var countEl = document.getElementById('pendingCount');
+        if (countEl) countEl.textContent = '(' + list.length + '人)';
+
+        var box = document.getElementById('pendingApprovalList');
+        if (!box) return;
+
+        if (!list.length) {
+            box.innerHTML = '<div class="empty-state">暂无待审核报名</div>';
+            return;
+        }
+
+        var self = this;
+        box.innerHTML = list.map(function(item) {
+            var avatar = item.avatar
+                ? '<img src="' + escapeHtml(item.avatar) + '" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">'
+                : '<div style="width:36px;height:36px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">' + (item.nickname || '?').charAt(0) + '</div>';
+            return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">' +
+                avatar +
+                '<div style="flex:1;min-width:0;">' +
+                    '<div style="font-size:14px;font-weight:700;">' + escapeHtml(item.nickname || '未知用户') + '</div>' +
+                    '<div style="font-size:12px;color:var(--text-secondary);">报名时间：' + formatTime(item.registeredAt) + '</div>' +
+                '</div>' +
+                '<div style="display:flex;gap:6px;">' +
+                    '<button class="btn btn-sm btn-primary btn-approve" data-regid="' + item.id + '" style="width:auto;font-size:12px;padding:4px 12px;">通过</button>' +
+                    '<button class="btn btn-sm btn-outline btn-reject" data-regid="' + item.id + '" style="width:auto;font-size:12px;padding:4px 12px;color:var(--danger);">拒绝</button>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+
+        // 绑定事件
+        var cardEl = document.getElementById('pendingApprovalCard');
+        if (cardEl && !cardEl._boundPending) {
+            cardEl._boundPending = true;
+            cardEl.addEventListener('click', function(e) {
+                var btnApprove = e.target.closest('.btn-approve');
+                var btnReject = e.target.closest('.btn-reject');
+                if (btnApprove) {
+                    var regId = parseInt(btnApprove.dataset.regid);
+                    self._handleApprove(activityId, regId);
+                }
+                if (btnReject) {
+                    var regId = parseInt(btnReject.dataset.regid);
+                    self._handleReject(activityId, regId);
+                }
+            });
+        }
+    },
+
+    _handleApprove: async function(activityId, regId) {
+        var self = this;
+        try {
+            await api('/activities/' + activityId + '/registrations/' + regId + '/approve', { method: 'POST' });
+            toast('已通过');
+            self.loadPendingRegistrations(activityId);
+            self.loadCreatorParticipantList(activityId);
+        } catch (err) {
+            toast(err.message || '操作失败', 'error');
+        }
+    },
+
+    _handleReject: async function(activityId, regId) {
+        var self = this;
+        try {
+            await api('/activities/' + activityId + '/registrations/' + regId + '/reject', { method: 'POST' });
+            toast('已拒绝');
+            self.loadPendingRegistrations(activityId);
+        } catch (err) {
+            toast(err.message || '操作失败', 'error');
         }
     },
 
@@ -329,23 +530,33 @@ Router.register('/activity/:id', {
     },
 
     doPostComment: async function(activityId, parentId, replyContent) {
+        if (this._submittingComment) return;
         var content = replyContent || document.getElementById('commentContent').value.trim();
         if (!content) { toast('请输入留言内容', 'error'); return; }
         if (content.length > 200) { toast('留言不能超过200字', 'error'); return; }
+
+        this._submittingComment = true;
+        var btn = document.getElementById('btnPostComment');
+        var origText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '发布中...';
 
         var body = { content: content };
         if (parentId) body.parentId = parentId;
 
         try {
             await api('/activities/' + activityId + '/comments', { method: 'POST', body: body });
-            if (!parentId) document.getElementById('commentContent').value = '';
+            if (!parentId) {
+                var cc = document.getElementById('commentContent');
+                if (cc) cc.value = '';
+            }
             this.loadComments(activityId);
         } catch (err) {
-            if (err.code === 451) {
-                showBlockModal(err.message);
-            } else {
-                toast(err.message || '留言失败', 'error');
-            }
+            toast(err.message || '留言失败', 'error');
+        } finally {
+            this._submittingComment = false;
+            btn.disabled = false;
+            btn.textContent = origText;
         }
     },
 

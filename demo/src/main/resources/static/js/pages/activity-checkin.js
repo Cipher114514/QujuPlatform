@@ -52,6 +52,7 @@ var ActivityCheckinPage = {
     },
 
     destroy: function() {
+        this._destroyed = true;
         this.scanning = false;
         if (this.stream) {
             this.stream.getTracks().forEach(function(track) { track.stop(); });
@@ -132,7 +133,9 @@ var ActivityCheckinPage = {
                 body: { token: token }
             });
             toast(res.message || '签到成功');
-            document.getElementById('manualCheckinCode').value = '';
+            if (this._destroyed) return;
+            var inp = document.getElementById('manualCheckinCode');
+            if (inp) inp.value = '';
             await this.loadList();
         } catch (err) {
             toast(err.message || '核销失败', 'error');

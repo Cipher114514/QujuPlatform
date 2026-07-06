@@ -32,10 +32,10 @@ public class RegistrationService {
         var existingReg = registrationRepository.findByActivityIdAndUserId(activityId, userId);
         if (existingReg.isPresent()) {
             Registration reg = existingReg.get();
-            if ("CONFIRMED".equals(reg.getStatus())) {
+            if ("CONFIRMED".equals(reg.getStatus()) || "PENDING".equals(reg.getStatus())) {
                 throw new BusinessException("您已报名该活动");
             }
-            if ("CANCELLED".equals(reg.getStatus())) {
+            if ("CANCELLED".equals(reg.getStatus()) || "REJECTED".equals(reg.getStatus())) {
                 return reactivateRegistration(activity, reg);
             }
         }
@@ -49,15 +49,21 @@ public class RegistrationService {
             throw new BusinessException("报名已截止");
         }
 
-        int updated = activityRepository.incrementParticipants(activityId);
-        if (updated == 0) {
-            throw new BusinessException(409, "活动已满员");
+        // 需要审核：不占名额，状态为 PENDING
+        boolean needApproval = activity.getRequireApproval() != null && activity.getRequireApproval();
+        String status = needApproval ? "PENDING" : "CONFIRMED";
+
+        if (!needApproval) {
+            int updated = activityRepository.incrementParticipants(activityId);
+            if (updated == 0) {
+                throw new BusinessException(409, "活动已满员");
+            }
         }
 
         Registration registration = Registration.builder()
                 .activityId(activityId)
                 .userId(userId)
-                .status("CONFIRMED")
+                .status(status)
                 .participants(1)
                 .build();
 
@@ -72,6 +78,15 @@ public class RegistrationService {
         if (activity.getRegistrationDeadline() != null
                 && activity.getRegistrationDeadline().isBefore(LocalDateTime.now())) {
             throw new BusinessException("报名已截止");
+        }
+
+        // 需要审核：重新进入待审核
+        boolean needApproval = activity.getRequireApproval() != null && activity.getRequireApproval();
+        if (needApproval) {
+            reg.setStatus("PENDING");
+            reg.setCancelledAt(null);
+            reg.setCheckedInAt(null);
+            return registrationRepository.save(reg);
         }
 
         int updated = activityRepository.incrementParticipants(activity.getId());

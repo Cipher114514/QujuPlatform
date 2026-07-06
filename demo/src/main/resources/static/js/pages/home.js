@@ -1,4 +1,4 @@
-// ====== 首页（仪表盘） ======
+// ====== 首页（信息流） ======
 Router.register('/home', {
     title: '首页',
     requireAuth: true,
@@ -12,8 +12,10 @@ Router.register('/home', {
                 <p id="homeSub">欢迎回到趣聚平台</p>\
             </div>\
             <div class="home-tabs">\
-                <div class="home-tab active" data-tab="activities" onclick="switchHomeTab(\'activities\')">推荐活动</div>\
-                <div class="home-tab" data-tab="teams" onclick="switchHomeTab(\'teams\')">推荐小队</div>\
+                <div class="home-tab active" data-tab="recommend" onclick="switchHomeTab(\'recommend\')">推荐</div>\
+                <div class="home-tab" data-tab="newest" onclick="switchHomeTab(\'newest\')">最新</div>\
+                <div class="home-tab" data-tab="nearby" onclick="switchHomeTab(\'nearby\')">附近</div>\
+                <div class="home-tab" data-tab="teams" onclick="switchHomeTab(\'teams\')">小队</div>\
             </div>\
             <div id="homeFeedWrapper" class="home-feed-list">\
                 <div class="loading">加载中...</div>\
@@ -46,13 +48,13 @@ Router.register('/home', {
 
     init: function () {
         homeTabData = {};
-        homeActiveTab = 'activities';
+        homeActiveTab = 'recommend';
         loadHomeFeed();
     }
 });
 
 // 首页 Tab 状态
-var homeActiveTab = 'activities';
+var homeActiveTab = 'recommend';
 var homeTabData = {};
 
 function switchHomeTab(tab) {
@@ -79,15 +81,25 @@ async function loadHomeFeed() {
 
     var tab = homeActiveTab;
 
+    // 附近 Tab 直接显示地图入口，不走 API
+    if (tab === 'nearby') {
+        homeTabData[tab] = [];
+        renderHomeFeed([], tab);
+        return;
+    }
+
     try {
-        var data;
-        if (tab === 'activities') {
-            var res = await api('/activities?size=9&page=0');
-            data = (res.data && res.data.content) ? res.data.content : [];
+        var url;
+        if (tab === 'recommend') {
+            url = '/activities?size=9&page=0';
+        } else if (tab === 'newest') {
+            url = '/activities?size=9&page=0&sort=newest';
         } else {
-            var res = await api('/teams?size=9&page=1');
-            data = (res.data && res.data.content) ? res.data.content : [];
+            url = '/teams?size=9&page=1';
         }
+
+        var res = await api(url);
+        var data = (res.data && res.data.content) ? res.data.content : [];
 
         homeTabData[tab] = data;
         renderHomeFeed(data, tab);
@@ -100,42 +112,27 @@ function renderHomeFeed(data, tab) {
     var container = document.getElementById('homeFeedWrapper');
     if (!container) return;
 
+    // 附近 Tab：地图入口卡片
+    if (tab === 'nearby') {
+        container.innerHTML = '\
+            <div class="home-feed-card" onclick="Router.navigate(\'/map\')" style="background:linear-gradient(135deg, #e8f4fd 0%, #d4eaff 100%);border:2px dashed var(--primary);">\
+                <div style="text-align:center;padding:24px 16px;">\
+                    <div style="font-size:48px;margin-bottom:12px;">🗺️</div>\
+                    <div style="font-weight:700;font-size:16px;margin-bottom:4px;color:var(--text);">查看附近活动</div>\
+                    <div style="font-size:13px;color:var(--text-secondary);">在地图模式中发现你周围正在发生的精彩活动</div>\
+                    <div style="margin-top:12px;display:inline-block;padding:8px 24px;background:var(--primary);color:#fff;border-radius:20px;font-size:14px;font-weight:600;">打开地图 →</div>\
+                </div>\
+            </div>';
+        return;
+    }
+
     if (!data || data.length === 0) {
-        var label = tab === 'activities' ? '暂无推荐活动' : '暂无推荐小队';
+        var label = tab === 'teams' ? '暂无推荐小队' : '暂无活动';
         container.innerHTML = '<div class="empty-state">' + label + '</div>';
         return;
     }
 
-    if (tab === 'activities') {
-        container.innerHTML = data.map(function(a) {
-            var catIcons = { sports: '⚽', outdoor: '🏔️', boardgame: '🎲', study: '📚', charity: '🤝', citywalk: '🚶', hiking: '🥾' };
-            var catIcon = catIcons[a.category] || '📌';
-            var catNames = { sports: '运动', outdoor: '户外', boardgame: '桌游', study: '学习', charity: '公益', citywalk: '探索', hiking: '徒步' };
-            var catName = catNames[a.category] || a.category;
-            var dateStr = a.startTime ? formatHomeDate(a.startTime) : '';
-            var loc = a.location || '';
-            var feeStr = a.fee > 0 ? '¥' + a.fee : '免费';
-            var cover = a.coverImage
-                ? '<img class="home-feed-cover" src="' + escHtml(a.coverImage) + '" alt="" loading="lazy">'
-                : '<div class="home-feed-cover placeholder ' + escHtml(a.category || '') + '">' + catIcon + '</div>';
-
-            return '<div class="home-feed-card" onclick="Router.navigate(\'/activity/' + a.id + '\')">' +
-                cover +
-                '<div class="home-feed-body">' +
-                    '<div class="feed-title">' + escHtml(a.title) + '</div>' +
-                    '<div class="feed-meta">' +
-                        '<span class="home-feed-badge">' + escHtml(catName) + '</span>' +
-                        '<span>' + escHtml(dateStr) + '</span>' +
-                        (loc ? '<span>' + escHtml(loc) + '</span>' : '') +
-                    '</div>' +
-                    '<div class="feed-meta">' +
-                        '<span>👥 ' + (a.currentParticipants || 0) + '/' + (a.maxParticipants || '∞') + '人</span>' +
-                        '<span style="color:var(--primary);font-weight:600;">' + escHtml(feeStr) + '</span>' +
-                    '</div>' +
-                '</div>' +
-            '</div>';
-        }).join('');
-    } else {
+    if (tab === 'teams') {
         container.innerHTML = data.map(function(t) {
             var desc = t.description || '';
             var tags = t.tags || [];
@@ -161,6 +158,35 @@ function renderHomeFeed(data, tab) {
                         badge +
                         '<span>👤 ' + escHtml(t.leaderNickname || '') + '</span>' +
                         '<span>👥 ' + (t.memberCount || 0) + '人</span>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+    } else {
+        container.innerHTML = data.map(function(a) {
+            var catIcons = { sports: '⚽', outdoor: '🏔️', boardgame: '🎲', study: '📚', charity: '🤝', citywalk: '🚶', hiking: '🥾' };
+            var catIcon = catIcons[a.category] || '📌';
+            var catMap = { sports: '运动', outdoor: '户外', boardgame: '桌游', study: '学习', charity: '公益', citywalk: '探索', hiking: '徒步' };
+            var catName = catMap[a.category] || a.category;
+            var dateStr = a.startTime ? formatHomeDate(a.startTime) : '';
+            var loc = a.location || '';
+            var feeStr = a.fee > 0 ? '¥' + a.fee : '免费';
+            var cover = a.coverImage
+                ? '<img class="home-feed-cover" src="' + escHtml(a.coverImage) + '" alt="" loading="lazy">'
+                : '<div class="home-feed-cover placeholder ' + escHtml(a.category || '') + '">' + catIcon + '</div>';
+
+            return '<div class="home-feed-card" onclick="Router.navigate(\'/activity/' + a.id + '\')">' +
+                cover +
+                '<div class="home-feed-body">' +
+                    '<div class="feed-title">' + escHtml(a.title) + '</div>' +
+                    '<div class="feed-meta">' +
+                        '<span class="home-feed-badge">' + escHtml(catName) + '</span>' +
+                        '<span>' + escHtml(dateStr) + '</span>' +
+                        (loc ? '<span>' + escHtml(loc) + '</span>' : '') +
+                    '</div>' +
+                    '<div class="feed-meta">' +
+                        '<span>👥 ' + (a.currentParticipants || 0) + '/' + (a.maxParticipants || '∞') + '人</span>' +
+                        '<span style="color:var(--primary);font-weight:600;">' + escHtml(feeStr) + '</span>' +
                     '</div>' +
                 '</div>' +
             '</div>';

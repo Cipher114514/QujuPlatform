@@ -22,7 +22,8 @@ public class ActivityDetailController {
     @GetMapping("/{id}")
     public Result<ActivityDetailResponse> getDetail(@PathVariable Long id,
                                                      @AuthenticationPrincipal User currentUser) {
-        return Result.ok(activityDetailService.getDetail(id, currentUser.getId()));
+        Long userId = currentUser != null ? currentUser.getId() : null;
+        return Result.ok(activityDetailService.getDetail(id, userId));
     }
 
     /** 报名活动 */

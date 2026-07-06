@@ -68,7 +68,7 @@ var Navbar = {
                 if (currentPath === item.path || (item.path !== '/home' && currentPath.indexOf(item.path) === 0)) {
                     isCatActive = true;
                 }
-                itemsHtml += '<a href="#' + item.path + '" class="flyout-item" onclick="Navbar.closeMobile();">' +
+                itemsHtml += '<a href="#' + item.path + '" class="flyout-item' + (currentPath === item.path || (item.path !== '/home' && currentPath.indexOf(item.path) === 0) ? ' active' : '') + '" onclick="Navbar.closeMobile();">' +
                     '<span class="fi-icon">' + item.icon + '</span>' +
                     '<span>' + item.label + '</span></a>';
             }
@@ -145,5 +145,45 @@ var Navbar = {
         var cat = document.getElementById('cat-' + index);
         if (!cat) return;
         cat.classList.toggle('open');
+    },
+
+    /** 路由切换后更新侧边栏高亮 */
+    updateActive: function() {
+        var currentPath = window.location.hash.slice(1) || '/home';
+
+        // 首页
+        var homeItem = document.querySelector('.sidebar-nav > a[href="#/home"]');
+        if (homeItem) homeItem.classList.toggle('active', currentPath === '/home');
+
+        // 遍历分类及 flyout 子项
+        for (var i = 0; i < this.categories.length; i++) {
+            var cat = this.categories[i];
+            var catEl = document.getElementById('cat-' + i);
+            if (!catEl) continue;
+
+            var catActive = false;
+            var catItem = catEl.querySelector('.sidebar-item');
+
+            for (var j = 0; j < cat.items.length; j++) {
+                var item = cat.items[j];
+                var match = currentPath === item.path || (item.path !== '/home' && currentPath.indexOf(item.path) === 0);
+                if (match) catActive = true;
+
+                var flyoutItems = catEl.querySelectorAll('.flyout-item');
+                if (flyoutItems[j]) {
+                    flyoutItems[j].classList.toggle('active', match);
+                }
+            }
+
+            if (catItem) catItem.classList.toggle('active', catActive);
+        }
+
+        // 个人资料
+        var profileItem = document.querySelector('.sidebar-footer > a[href="#/profile"]');
+        if (profileItem) profileItem.classList.toggle('active', currentPath === '/profile');
+
+        // 管理后台
+        var adminItem = document.querySelector('.sidebar-footer > a[href="#/admin"]');
+        if (adminItem) adminItem.classList.toggle('active', currentPath === '/admin');
     }
 };

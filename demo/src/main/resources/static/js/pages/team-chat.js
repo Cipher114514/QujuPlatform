@@ -835,29 +835,11 @@ Router.register('/team/:id/chat', {
         }
 
         var curUser = getCurUser();
-        var tempId = 'temp_' + Date.now();
-        var now = new Date().toISOString();
         var isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name);
-
-        var tempMsg = {
-            id: tempId,
-            teamId: this._teamId,
-            senderId: curUser ? curUser.id : 0,
-            senderNickname: curUser ? curUser.nickname : '我',
-            senderAvatar: curUser ? curUser.avatar : null,
-            content: isImage ? '[图片] ' + file.name : '[文件] ' + file.name,
-            type: 'FILE',
-            metadata: JSON.stringify({ fileName: file.name, fileSize: file.size }),
-            status: 'sending',
-            sentAt: now
-        };
-        this._messages.push(tempMsg);
-        this._renderMessages();
-        this._scrollToBottom();
+        toast('文件上传中...', '');
 
         try {
             var uploadRes = await UploadAPI.upload(file, 'chat');
-            // uploadRes.data 是 { url, filename, size, type }
             var fileData = uploadRes.data;
             var fileUrl = (typeof fileData === 'string') ? fileData : (fileData.url || '');
 
@@ -872,15 +854,17 @@ Router.register('/team/:id/chat', {
                 body: { content: fileUrl, type: 'FILE', metadata: metadata }
             });
             if (res && res.data) {
-                var idx = this._findMsgIndex(tempId);
-                if (idx >= 0) this._messages[idx] = res.data;
+                // 去重：WebSocket 可能抢先推送同一条（竞态）
+                for (var j = this._messages.length - 1; j >= 0; j--) {
+                    if (this._messages[j].id === res.data.id) {
+                        this._messages.splice(j, 1);
+                    }
+                }
+                this._messages.push(res.data);
             }
             this._renderMessages();
             this._scrollToBottom();
         } catch (err) {
-            var idx = this._findMsgIndex(tempId);
-            if (idx >= 0) this._messages[idx].status = 'failed';
-            this._renderMessages();
             toast('文件发送失败: ' + (err.message || '未知错误'), 'error');
         }
         e.target.value = '';

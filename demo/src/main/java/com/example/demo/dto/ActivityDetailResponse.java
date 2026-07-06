@@ -28,6 +28,7 @@ public class ActivityDetailResponse {
     private String createdAt;
     private CreatorInfo creator;
     private MyRegistrationInfo myRegistration;
+    private Boolean requireApproval;
     private BigDecimal avgRating;
     private Long reviewCount;
 

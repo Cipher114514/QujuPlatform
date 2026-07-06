@@ -142,6 +142,11 @@ const Router = {
         document.getElementById('app').innerHTML = config.render(params);
         if (config.init) config.init(params);
 
+        // 更新侧边栏高亮
+        if (typeof Navbar !== 'undefined' && Navbar.updateActive) {
+            Navbar.updateActive();
+        }
+
         // 滚动到顶部
         window.scrollTo(0, 0);
     }

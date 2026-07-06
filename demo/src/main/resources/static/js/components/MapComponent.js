@@ -16,6 +16,7 @@ var MapComponent = {
     isLocated: false,
     manualCity: null,    // 用户手动选择的城市名
     _keepView: false,    // 标记：跳过 renderMarkers 中的 setFitView
+    _destroyed: false,   // 标记：组件已销毁，阻止异步回调继续操作
     
     /**
      * 从后端获取高德配置并加载SDK
@@ -232,6 +233,7 @@ var MapComponent = {
         fetch(url)
             .then(function(r) { return r.json(); })
             .then(function(data) {
+                if (self._destroyed) return;
                 console.log('IP 定位结果:', data);
                 if (data.status === '1' && data.rectangle) {
                     var parts = data.rectangle.split(';');
@@ -343,6 +345,7 @@ var MapComponent = {
         
         api('/map/activities', { method: 'GET' })
             .then(function(res) {
+                if (self._destroyed) return;
                 self.allActivities = res.data || [];
                 console.log('加载活动数据成功，共', self.allActivities.length, '个活动');
                 self.applyFilters();
@@ -616,6 +619,7 @@ var MapComponent = {
      * 销毁地图实例
      */
     destroy: function() {
+        this._destroyed = true;
         if (this.mapInstance) {
             this.mapInstance.destroy();
             this.mapInstance = null;

@@ -49,6 +49,7 @@ public class ActivityAssistController {
      */
     @GetMapping("/activities/my")
     public Result<List<Activity>> getMyActivities(@AuthenticationPrincipal User currentUser) {
+        if (currentUser == null) return Result.fail(401, "请先登录");
         List<Activity> activities = activityRepository.findByCreatorIdOrderByCreatedAtDesc(currentUser.getId());
         return Result.ok(activities);
     }

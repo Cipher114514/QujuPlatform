@@ -74,6 +74,7 @@ public class ActivityService {
                 .longitude(req.getLongitude())
                 .creatorId(creator.getId())
                 .registrationDeadline(req.getRegistrationDeadline())
+                .requireApproval(req.getRequireApproval() != null ? req.getRequireApproval() : false)
                 .build();
 
         return activityRepository.save(activity);
@@ -173,6 +174,7 @@ public class ActivityService {
                 .coverImage(req.getCoverImage())
                 .creatorId(creator.getId())
                 .registrationDeadline(req.getRegistrationDeadline())
+                .requireApproval(req.getRequireApproval() != null ? req.getRequireApproval() : false)
                 .build();
 
         return activityRepository.save(activity);

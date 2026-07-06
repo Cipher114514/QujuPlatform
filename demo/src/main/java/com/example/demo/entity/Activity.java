@@ -72,6 +72,11 @@ public class Activity {
     /** 关联小队ID（队内专属活动，公开活动为null） */
     private Long teamId;
 
+    /** 报名是否需要审核，false=直接确认，true=需创建人审核 */
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean requireApproval = false;
+
     private LocalDateTime registrationDeadline;
 
     @Column(nullable = false, updatable = false)

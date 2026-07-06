@@ -118,6 +118,15 @@ Router.register('/create-activity', {
                             value="${draft.fee || 0}">
                     </div>
 
+                    <!-- 报名审核开关 -->
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                            <input type="checkbox" id="actRequireApproval" ${draft.requireApproval ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;">
+                            <span>需要审核报名</span>
+                        </label>
+                        <div class="hint">开启后，用户报名需经你审核通过才能参加活动</div>
+                    </div>
+
                     <!-- 标签 -->
                     <div class="form-group">
                         <label>标签</label>
@@ -265,7 +274,8 @@ function saveDraft(data) {
         tags: data.tags ? data.tags.split(',').map(function(t){ return t.trim(); }).filter(function(t){ return t; }) : [],
         coverImage: data.coverImage || '',
         latitude: data.latitude || null,
-        longitude: data.longitude || null
+        longitude: data.longitude || null,
+        requireApproval: data.requireApproval || false
     }}).then(function() {
         toast('草稿已保存');
         // 同时保留localStorage作为本地备份
@@ -293,7 +303,8 @@ async function updateDraft(draftId, data) {
             tags: data.tags ? data.tags.split(',').map(function(t){ return t.trim(); }).filter(function(t){ return t; }) : [],
             coverImage: data.coverImage || '',
             latitude: data.latitude || null,
-            longitude: data.longitude || null
+            longitude: data.longitude || null,
+            requireApproval: data.requireApproval || false
         }});
         toast('草稿已更新');
         localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
@@ -372,7 +383,8 @@ function collectFormData() {
         tags: document.getElementById('actTags').value.trim(),
         coverImage: document.getElementById('actCover').value.trim(),
         latitude: document.getElementById('actLatitude').value.trim() || undefined,
-        longitude: document.getElementById('actLongitude').value.trim() || undefined
+        longitude: document.getElementById('actLongitude').value.trim() || undefined,
+        requireApproval: document.getElementById('actRequireApproval').checked
     };
 }
 
@@ -442,7 +454,8 @@ async function submitActivity(data) {
             tags: data.tags ? data.tags.split(',').map(function(t){ return t.trim(); }).filter(function(t){ return t; }) : [],
             coverImage: data.coverImage || undefined,
             latitude: data.latitude || undefined,
-            longitude: data.longitude || undefined
+            longitude: data.longitude || undefined,
+            requireApproval: data.requireApproval || false
         };
 
         var editId = window._editingActivityId;
@@ -523,6 +536,8 @@ async function loadCloneDataToForm(cloneId) {
         setFieldVal('actCover', d.coverImage || '');
         setFieldVal('actLatitude', d.latitude || '');
         setFieldVal('actLongitude', d.longitude || '');
+        var chkApproval = document.getElementById('actRequireApproval');
+        if (chkApproval) chkApproval.checked = d.requireApproval || false;
         // 时间字段清空，让用户重新选择
         setFieldVal('actStartTime', '');
         setFieldVal('actEndTime', '');
@@ -582,6 +597,8 @@ async function loadEditDataToForm(editId, isDraft) {
         setFieldVal('actCover', d.coverImage || '');
         setFieldVal('actLatitude', d.latitude || '');
         setFieldVal('actLongitude', d.longitude || '');
+        var chkApproval = document.getElementById('actRequireApproval');
+        if (chkApproval) chkApproval.checked = d.requireApproval || false;
         setFieldVal('actStartTime', formatForDatetimeLocal(d.startTime));
         setFieldVal('actEndTime', formatForDatetimeLocal(d.endTime));
         setFieldVal('actDeadline', formatForDatetimeLocal(d.registrationDeadline));

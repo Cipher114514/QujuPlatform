@@ -32,6 +32,7 @@ public class MessageService {
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final FriendshipService friendshipService;
 
     // ---------- 会话列表 ----------
 
@@ -114,6 +115,11 @@ public class MessageService {
 
         if (!userRepository.existsById(targetUserId)) {
             throw new BusinessException(404, "目标用户不存在");
+        }
+
+        // 检查拉黑关系（任意方向）
+        if (friendshipService.isBlocked(senderId, targetUserId)) {
+            throw new BusinessException("无法发送消息，你与对方之间存在拉黑关系");
         }
 
         Long u1 = Math.min(senderId, targetUserId);

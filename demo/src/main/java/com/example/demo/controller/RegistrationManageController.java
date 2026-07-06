@@ -14,6 +14,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.stream.Collectors;
 
 @RestController
@@ -80,6 +82,51 @@ public class RegistrationManageController {
         }).collect(Collectors.toList());
 
         return Result.ok(result);
+    }
+
+    // ====== 报名审核（活动创建人） ======
+
+    @GetMapping("/activities/{id}/registrations/pending")
+    public Result<List<Map<String, Object>>> getPendingRegistrations(@PathVariable Long id) {
+        List<Registration> list = registrationManageService.getPendingRegistrations(id, getCurrentUserId());
+        List<Map<String, Object>> result = list.stream().map(reg -> {
+            User user = userRepository.findById(reg.getUserId()).orElse(null);
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", reg.getId());
+            m.put("userId", reg.getUserId());
+            m.put("status", reg.getStatus());
+            m.put("registeredAt", reg.getRegisteredAt() != null ? reg.getRegisteredAt().toString() : null);
+            if (user != null) {
+                m.put("nickname", user.getNickname());
+                m.put("avatar", user.getAvatar());
+            }
+            return m;
+        }).collect(Collectors.toList());
+        return Result.ok(result);
+    }
+
+    @PostMapping("/activities/{id}/registrations/{regId}/approve")
+    public Result<Map<String, Object>> approveRegistration(@PathVariable Long id, @PathVariable Long regId) {
+        Registration reg = registrationManageService.approveRegistration(id, regId, getCurrentUserId());
+        User user = userRepository.findById(reg.getUserId()).orElse(null);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", reg.getId());
+        m.put("status", reg.getStatus());
+        m.put("userId", reg.getUserId());
+        if (user != null) {
+            m.put("nickname", user.getNickname());
+            m.put("avatar", user.getAvatar());
+        }
+        return Result.ok("已通过", m);
+    }
+
+    @PostMapping("/activities/{id}/registrations/{regId}/reject")
+    public Result<Map<String, Object>> rejectRegistration(@PathVariable Long id, @PathVariable Long regId) {
+        Registration reg = registrationManageService.rejectRegistration(id, regId, getCurrentUserId());
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", reg.getId());
+        m.put("status", reg.getStatus());
+        return Result.ok("已拒绝", m);
     }
 
     static class WaitlistStatusResponse {

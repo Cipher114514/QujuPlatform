@@ -26,36 +26,6 @@ Router.register('/login', {
                 </form>
             </div>
             <div class="form-footer"><a href="#/register">还没有账号？立即注册</a></div>
-            <div class="card" style="margin-top:20px;background:#f8fafc;">
-                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">测试账号（点击快速填充）：</p>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                    <button class="btn btn-outline btn-sm" style="text-align:left;font-size:12px;"
-                        onclick="document.getElementById('loginEmail').value='admin@platform.com';document.getElementById('loginPwd').value='test1234'">
-                        ⭐ admin@platform.com
-                    </button>
-                    <button class="btn btn-outline btn-sm" style="text-align:left;font-size:12px;"
-                        onclick="document.getElementById('loginEmail').value='zhangsan@test.com';document.getElementById('loginPwd').value='test1234'">
-                        👤 张三
-                    </button>
-                    <button class="btn btn-outline btn-sm" style="text-align:left;font-size:12px;"
-                        onclick="document.getElementById('loginEmail').value='lisi@test.com';document.getElementById('loginPwd').value='test1234'">
-                        👤 李四
-                    </button>
-                    <button class="btn btn-outline btn-sm" style="text-align:left;font-size:12px;"
-                        onclick="document.getElementById('loginEmail').value='wangwu@test.com';document.getElementById('loginPwd').value='test1234'">
-                        👤 王五
-                    </button>
-                    <button class="btn btn-outline btn-sm" style="text-align:left;font-size:12px;"
-                        onclick="document.getElementById('loginEmail').value='zhouba@test.com';document.getElementById('loginPwd').value='test1234'">
-                        🏪 周八的运动馆
-                    </button>
-                    <button class="btn btn-outline btn-sm" style="text-align:left;font-size:12px;"
-                        onclick="document.getElementById('loginEmail').value='zhengshi@test.com';document.getElementById('loginPwd').value='test1234'">
-                        🏪 郑十的桌游吧
-                    </button>
-                </div>
-                <p style="font-size:11px;color:var(--text-secondary);margin-top:6px;">所有测试账号密码: test1234</p>
-            </div>
         </div>`;
     },
 

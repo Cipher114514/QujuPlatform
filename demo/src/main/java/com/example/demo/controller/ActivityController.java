@@ -72,6 +72,7 @@ public class ActivityController {
     /** US-008: 获取我的草稿列表 */
     @GetMapping("/drafts")
     public Result<java.util.List<Activity>> getDrafts(@AuthenticationPrincipal User currentUser) {
+        if (currentUser == null) return Result.fail(401, "请先登录");
         return Result.ok(activityService.getDrafts(currentUser.getId()));
     }
 

@@ -47,7 +47,8 @@ public class TeamController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "12") Integer size) {
         log.info("获取小队列表: keyword={}, tag={}, page={}", keyword, tag, page);
-        Page<TeamResponse> teams = teamService.getTeams(keyword, tag, page, size, currentUser.getId());
+        Long userId = currentUser != null ? currentUser.getId() : null;
+        Page<TeamResponse> teams = teamService.getTeams(keyword, tag, page, size, userId);
         return Result.ok(teams);
     }
 
@@ -59,7 +60,8 @@ public class TeamController {
             @AuthenticationPrincipal User currentUser,
             @PathVariable("id") Long id) {
         log.info("获取小队详情: teamId={}", id);
-        TeamResponse response = teamService.getTeamDetail(id, currentUser.getId());
+        Long userId = currentUser != null ? currentUser.getId() : null;
+        TeamResponse response = teamService.getTeamDetail(id, userId);
         return Result.ok(response);
     }
 

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -28,12 +29,16 @@ public class ContentFilterService {
     private final String aiApiKey;
     private final String aiModel;
 
-    public ContentFilterService(RestClient.Builder restClientBuilder,
-                                ObjectMapper objectMapper,
+    public ContentFilterService(ObjectMapper objectMapper,
                                 @Value("${app.ai.openai.base-url:}") String aiBaseUrl,
                                 @Value("${app.ai.openai.api-key:}") String aiApiKey,
                                 @Value("${app.ai.openai.model:}") String aiModel) {
-        this.restClient = restClientBuilder.build();
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(3));
+        factory.setReadTimeout(Duration.ofSeconds(5));
+        this.restClient = RestClient.builder()
+                .requestFactory(factory)
+                .build();
         this.objectMapper = objectMapper;
         this.aiBaseUrl = aiBaseUrl;
         this.aiApiKey = aiApiKey;

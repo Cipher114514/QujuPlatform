@@ -43,4 +43,7 @@ public class CreateActivityRequest {
     private List<String> images;
     private Double latitude;
     private Double longitude;
+
+    /** 报名是否需要审核 */
+    private Boolean requireApproval;
 }

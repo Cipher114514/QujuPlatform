@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -56,19 +57,13 @@ public class CommentService {
         return result;
     }
 
-    /** 发布留言或回复 */
+    /** 发布留言或回复（先发布，异步审核，不合格则下架） */
     public Map<String, Object> postComment(Long activityId, Long userId, String content, Long parentId) {
         if (content == null || content.isBlank()) {
             throw new BusinessException("留言内容不能为空");
         }
         if (content.length() > 200) {
             throw new BusinessException("留言内容不能超过200个字符");
-        }
-
-        // US-010: AI 敏感词过滤
-        ContentFilterService.FilterResult filter = contentFilterService.check(content.trim(), userId);
-        if (!filter.passed()) {
-            throw new BusinessException(451, "内容包含违规信息，请修改后重试");
         }
 
         Comment comment = Comment.builder()
@@ -79,6 +74,21 @@ public class CommentService {
                 .build();
 
         comment = commentRepository.save(comment);
+
+        // 异步 AI 审核，不合格则下架
+        final Long commentId = comment.getId();
+        CompletableFuture.runAsync(() -> {
+            ContentFilterService.FilterResult filter = contentFilterService.check(content.trim(), userId);
+            if (!filter.passed()) {
+                Comment c = commentRepository.findById(commentId).orElse(null);
+                if (c != null) {
+                    c.setReportStatus("REPORTED");
+                    c.setReportReason("违规内容：" + (filter.reason() != null ? filter.reason() : "系统审核"));
+                    commentRepository.save(c);
+                }
+            }
+        });
+
         User user = userRepository.findById(userId).orElse(null);
         return toCommentMap(comment, user != null ? Map.of(user.getId(), user) : Map.of());
     }
